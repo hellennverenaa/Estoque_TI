@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { Search, Edit2, Trash2, Eye, Download, FileSpreadsheet, FileText, Filter } from 'lucide-vue-next';
-import { toast } from 'sonner-vue';
+import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
 import Input from '../components/Input.vue';
 import Select from '../components/Select.vue';

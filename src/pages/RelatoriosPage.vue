@@ -353,7 +353,7 @@ import Input from '../components/Input.vue';
 import Select from '../components/Select.vue';
 import { useMaterialStore } from '../stores/materialStore';
 import { useMovimentacaoStore } from '../stores/movimentacaoStore';
-import { toast } from 'sonner-vue';
+import { toast } from 'vue-sonner';
 
 // ============================================
 // STORES
