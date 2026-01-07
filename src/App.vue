@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Toaster } from 'sonner-vue';
+import { Toaster } from 'vue-sonner';
 import Header from './components/Header.vue';
 import Sidebar from './components/Sidebar.vue';
 import DashboardPage from './pages/DashboardPage.vue';

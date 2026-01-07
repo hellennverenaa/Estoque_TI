@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Settings, Save, User, Bell, Shield } from 'lucide-vue-next';
-import { toast } from 'sonner-vue';
+import { Save, User, Bell, Shield } from 'lucide-vue-next';
+import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
 import Input from '../components/Input.vue';
 import Button from '../components/Button.vue';
