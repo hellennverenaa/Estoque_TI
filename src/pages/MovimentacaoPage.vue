@@ -149,7 +149,6 @@ const limparFiltros = () => {
       <p class="text-[#6B7280]">Registre entradas e saídas de materiais</p>
     </div>
 
-    <!-- Formulário de Movimentação -->
     <form @submit.prevent="handleSubmit">
       <div class="flex flex-col gap-8">
         <Card>
@@ -166,11 +165,16 @@ const limparFiltros = () => {
               required
             />
 
+            <Input
+              v-model="formData.materialCodigo"
+              label="Código do Patrimônio"
+              placeholder="Ex: PAT-2024-001"
+            />
+
             <Select
               v-model="formData.materialCodigo"
-              label="Material *"
+              label="Material"
               :options="materialOptions"
-              required
             />
 
             <Input
@@ -196,7 +200,6 @@ const limparFiltros = () => {
               required
             />
 
-            <!-- Info do material selecionado -->
             <div v-if="materialSelecionado" class="md:col-span-2 p-4 bg-[#EFF6FF] rounded-xl">
               <div class="flex items-center justify-between">
                 <div>
@@ -232,7 +235,6 @@ const limparFiltros = () => {
       </div>
     </form>
 
-    <!-- Histórico de Movimentações -->
     <Card>
       <div class="flex items-center gap-3 mb-6">
         <div class="w-12 h-12 bg-[#ECFDF5] rounded-xl flex items-center justify-center">
@@ -244,7 +246,6 @@ const limparFiltros = () => {
         </div>
       </div>
 
-      <!-- Filtros -->
       <div class="mb-6 p-4 bg-[#F8F9FA] rounded-xl">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
           <Input
@@ -279,7 +280,6 @@ const limparFiltros = () => {
         </Button>
       </div>
 
-      <!-- Tabela Desktop -->
       <div class="hidden lg:block overflow-x-auto">
         <table class="w-full">
           <thead class="bg-[#F8F9FA] border-b border-[#E5E7EB]">
@@ -326,7 +326,6 @@ const limparFiltros = () => {
         </table>
       </div>
 
-      <!-- Cards Mobile -->
       <div class="lg:hidden space-y-4">
         <Card
           v-for="mov in historicoFiltrado"
@@ -375,7 +374,6 @@ const limparFiltros = () => {
         </Card>
       </div>
 
-      <!-- Mensagem vazia -->
       <div v-if="historicoFiltrado.length === 0" class="text-center py-12">
         <p class="text-[#9CA3AF]">Nenhuma movimentação encontrada</p>
       </div>
