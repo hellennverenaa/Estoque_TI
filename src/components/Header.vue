@@ -32,7 +32,7 @@ const emit = defineEmits<{
             <div class="w-6 h-6 bg-white/20 rounded-lg"></div>
           </div>
           <span class="hidden sm:block text-lg font-bold bg-gradient-to-r from-[#1E40AF] to-[#2563EB] bg-clip-text text-transparent">
-            Estoque TI
+            Estoque TI/Automação
           </span>
         </div>
       </div>
