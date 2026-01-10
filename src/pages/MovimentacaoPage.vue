@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { Save, Calendar, CheckCircle2, ScanBarcode } from 'lucide-vue-next';
+import { ref, computed, watch, nextTick } from 'vue';
+import { Save, Calendar, CheckCircle2, ScanBarcode, Lock, Scan, X } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
 import Input from '../components/Input.vue';
@@ -10,9 +10,56 @@ import Button from '../components/Button.vue';
 import Badge from '../components/Badge.vue';
 import { useMaterialStore } from '../stores/materialStore';
 import { useMovimentacaoStore } from '../stores/movimentacaoStore';
+import { useAuthStore } from '../stores/authStore';
 
 const materialStore = useMaterialStore();
 const movimentacaoStore = useMovimentacaoStore();
+const authStore = useAuthStore();
+
+// --- Lógica de Autenticação para Movimentação ---
+const showAuthModal = ref(false);
+const authInput = ref('');
+const authInputRef = ref<HTMLInputElement | null>(null);
+
+const abrirModalAuth = () => {
+  if (!materialSelecionado.value) {
+    toast.error('Selecione um material válido');
+    return;
+  }
+  const quantidade = Math.abs(parseInt(formData.value.quantidade));
+  if (!quantidade || quantidade <= 0) {
+    toast.error('A quantidade deve ser maior que zero');
+    return;
+  }
+  if (formData.value.tipo === 'saida' && quantidade > materialSelecionado.value.quantidade) {
+    toast.error('Quantidade de saída maior que o estoque disponível!');
+    return;
+  }
+  // Se validou o form básico, pede o crachá
+  showAuthModal.value = true;
+  authInput.value = '';
+  nextTick(() => {
+    authInputRef.value?.focus();
+  });
+};
+
+const confirmarAuth = () => {
+  const usuario = authStore.validarCracha(authInput.value);
+  
+  if (usuario) {
+    // Define o responsável baseado no dono do crachá
+    formData.value.responsavel = usuario.nome;
+    
+    toast.success(`Autorizado por: ${usuario.nome}`);
+    showAuthModal.value = false;
+    processarMovimentacao(); // Salva
+  } else {
+    toast.error('Crachá não autorizado');
+    authInput.value = '';
+    authInputRef.value?.focus();
+  }
+};
+// ------------------------------------------------
 
 const formatarData = (dataString: string) => {
   if (!dataString) return '-';
@@ -27,34 +74,29 @@ const formData = ref({
   tipo: 'entrada',
   materialCodigo: '',
   quantidade: '',
-  responsavel: '',
+  responsavel: '', // Será preenchido pelo crachá
   observacoes: '',
   data: new Date().toISOString().split('T')[0],
 });
 
-// --- LÓGICA DE BUSCA GLOBAL (CÓDIGO, SÉRIE OU PATRIMÔNIO) ---
 watch(buscaIdentificacao, (novoValor) => {
-  materialEncontradoInfo.value = null; // Reseta aviso
+  materialEncontradoInfo.value = null; 
 
   if (!novoValor || String(novoValor).trim() === '') return;
   
   const termoBusca = String(novoValor).trim().toLowerCase();
 
-  // Busca em TUDO: Código do sistema, Patrimônio ou Número de Série
   const encontrado = materialStore.materials?.find(m => {
     const codigoSistema = String(m.codigo).trim().toLowerCase();
     const patrimonio = String(m.patrimonio || '').trim().toLowerCase();
     const numeroSerie = String(m.numeroSerie || '').trim().toLowerCase();
     
-    // Se bater com QUALQUER um dos três, encontra o material
     return codigoSistema === termoBusca || patrimonio === termoBusca || numeroSerie === termoBusca;
   });
 
   if (encontrado) {
-    // 1. Seleciona o material no dropdown
     formData.value.materialCodigo = String(encontrado.codigo);
     
-    // 2. Define qual tipo de dado foi usado para achar (para feedback visual)
     let tipoEncontrado = 'Código';
     if (String(encontrado.patrimonio || '').toLowerCase() === termoBusca) tipoEncontrado = 'Patrimônio';
     if (String(encontrado.numeroSerie || '').toLowerCase() === termoBusca) tipoEncontrado = 'Nº Série';
@@ -65,19 +107,16 @@ watch(buscaIdentificacao, (novoValor) => {
   }
 });
 
-// Limpeza automática se o usuário mudar o material manualmente no dropdown
 watch(() => formData.value.materialCodigo, (novoCodigo) => {
   if (!novoCodigo) return;
   
   const mat = materialStore.materials.find(m => String(m.codigo) === String(novoCodigo));
   if (mat) {
-    // Verifica se o material selecionado tem alguma relação com o que está digitado na busca
     const termo = String(buscaIdentificacao.value).trim().toLowerCase();
     const matchCod = String(mat.codigo).toLowerCase() === termo;
     const matchPat = String(mat.patrimonio || '').toLowerCase() === termo;
     const matchNS = String(mat.numeroSerie || '').toLowerCase() === termo;
 
-    // Se o termo digitado não bater com nada do material selecionado, limpa o aviso verde
     if (termo && !matchCod && !matchPat && !matchNS) {
        materialEncontradoInfo.value = null;
     }
@@ -112,47 +151,32 @@ const materialSelecionado = computed(() => {
   return lista.find(m => String(m.codigo) === String(formData.value.materialCodigo));
 });
 
-const handleSubmit = () => {
-  if (!materialSelecionado.value) {
-    toast.error('Selecione um material válido');
-    return;
-  }
-
+// Lógica original de salvar, agora chamada dentro do confirmarAuth
+const processarMovimentacao = () => {
   const quantidade = Math.abs(parseInt(formData.value.quantidade));
   
-  if (!quantidade || quantidade <= 0) {
-    toast.error('A quantidade deve ser maior que zero');
-    return;
-  }
-
-  if (formData.value.tipo === 'saida' && quantidade > materialSelecionado.value.quantidade) {
-    toast.error('Quantidade de saída maior que o estoque disponível!');
-    return;
-  }
-
   movimentacaoStore.addMovimentacao({
     tipo: formData.value.tipo as 'entrada' | 'saida',
     materialCodigo: formData.value.materialCodigo,
-    materialNome: materialSelecionado.value.nome,
+    materialNome: materialSelecionado.value!.nome,
     quantidade: quantidade,
     responsavel: formData.value.responsavel,
     observacoes: formData.value.observacoes,
     data: formData.value.data,
-    valor: materialSelecionado.value.valor ? materialSelecionado.value.valor * quantidade : undefined,
-    categoria: materialSelecionado.value.categoria
+    valor: materialSelecionado.value!.valor ? materialSelecionado.value!.valor * quantidade : undefined,
+    categoria: materialSelecionado.value!.categoria
   });
 
   const novaQuantidade = formData.value.tipo === 'entrada' 
-    ? materialSelecionado.value.quantidade + quantidade
-    : materialSelecionado.value.quantidade - quantidade;
+    ? materialSelecionado.value!.quantidade + quantidade
+    : materialSelecionado.value!.quantidade - quantidade;
 
   materialStore.updateMaterial(formData.value.materialCodigo, {
     quantidade: novaQuantidade
   });
 
-  toast.success('Movimentação salva com sucesso!');
+  toast.success('Movimentação registrada!');
 
-  // Reset do formulário
   buscaIdentificacao.value = '';
   materialEncontradoInfo.value = null;
   formData.value = {
@@ -202,7 +226,44 @@ const limparFiltros = () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-10">
+  <div class="flex flex-col gap-10 relative">
+
+    <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 animate-in fade-in zoom-in duration-200">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <Lock class="text-blue-600" />
+            Autorizar Movimentação
+          </h2>
+          <button @click="showAuthModal = false" class="text-gray-400 hover:text-red-500 transition-colors">
+            <X :size="24" />
+          </button>
+        </div>
+
+        <div class="flex flex-col items-center gap-4 py-4">
+          <div class="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center animate-pulse border-4 border-blue-100">
+            <Scan :size="48" class="text-blue-600" />
+          </div>
+          <div class="text-center space-y-1">
+            <p class="text-gray-800 font-semibold text-lg">Aguardando Crachá</p>
+            <p class="text-gray-500 text-sm">
+              Bipe seu crachá para assinar como responsável.
+            </p>
+          </div>
+          
+          <input 
+            ref="authInputRef"
+            v-model="authInput"
+            @keyup.enter="confirmarAuth"
+            type="password"
+            class="w-full text-center border-2 border-gray-200 rounded-lg py-3 px-4 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all mt-4 text-lg tracking-widest"
+            placeholder="Leia o código..."
+            autocomplete="off"
+          />
+        </div>
+      </div>
+    </div>
+
     <div class="space-y-3">
       <h1 class="bg-gradient-to-r from-[#1E40AF] to-[#2563EB] bg-clip-text text-transparent text-2xl font-bold">
         Movimentação de Estoque
@@ -210,7 +271,7 @@ const limparFiltros = () => {
       <p class="text-[#6B7280]">Registre entradas e saídas de materiais</p>
     </div>
 
-    <form @submit.prevent="handleSubmit">
+    <form @submit.prevent="abrirModalAuth">
       <div class="flex flex-col gap-8">
         <Card>
           <div class="flex items-center gap-3 mb-8">
@@ -268,12 +329,15 @@ const limparFiltros = () => {
               required
             />
 
-            <Input
-              v-model="formData.responsavel"
-              label="Responsável *"
-              placeholder="Nome do responsável"
-              required
-            />
+            <div class="space-y-1">
+              <label class="block text-sm font-medium text-gray-700">Responsável</label>
+              <input 
+                type="text" 
+                value="Será preenchido pelo crachá" 
+                disabled 
+                class="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 italic cursor-not-allowed"
+              />
+            </div>
 
             <div v-if="materialSelecionado" class="md:col-span-2 p-4 bg-[#EFF6FF] rounded-xl border border-blue-100 animate-in fade-in slide-in-from-top-2">
               <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -318,8 +382,8 @@ const limparFiltros = () => {
         <Card class="bg-gray-50 border-dashed border-2">
           <div class="flex justify-end">
             <Button type="submit">
-              <Save :size="16" />
-              Registrar Movimentação
+              <Lock :size="16" class="mr-2" />
+              Validar e Registrar
             </Button>
           </div>
         </Card>
