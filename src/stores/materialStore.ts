@@ -9,7 +9,9 @@ export interface Material {
   minimo: number;
   valor?: number;
   patrimonio?: string;
-  numeroSerie?: string; // ADICIONADO: Campo para Número de Série
+  numeroSerie?: string;
+  local?: string;
+  criadoPor?: string; // <--- O CAMPO NOVO QUE ESTAVA FALTANDO
 }
 
 export const useMaterialStore = defineStore('material', () => {
@@ -46,9 +48,14 @@ export const useMaterialStore = defineStore('material', () => {
     }
   };
 
+  const deleteMaterial = (codigo: string) => {
+    materials.value = materials.value.filter(m => m.codigo !== codigo);
+  };
+
   return {
     materials,
     addMaterial,
-    updateMaterial
+    updateMaterial,
+    deleteMaterial
   };
 });
