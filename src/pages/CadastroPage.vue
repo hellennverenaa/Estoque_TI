@@ -1,349 +1,235 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Upload, Save, X } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { 
+  Package, 
+  Save, 
+  Archive,
+  Barcode,
+  Wand2 
+} from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
 import Input from '../components/Input.vue';
 import Select from '../components/Select.vue';
-import Textarea from '../components/Textarea.vue';
 import Button from '../components/Button.vue';
 import { useMaterialStore } from '../stores/materialStore';
-
-const emit = defineEmits<{
-  navigate: [page: string]
-}>();
 
 const materialStore = useMaterialStore();
 
 const formData = ref({
   nome: '',
   categoria: '',
-  descricao: '',
-  numeroSerie: '',
-  codigoPatrimonio: '',
+  quantidade: '',
+  minimo: '',
   local: '',
-  quantidadeAtual: '',
-  quantidadeMinima: '',
-  fornecedor: '',
-  dataAquisicao: '',
   valor: '',
+  codigoPrincipal: '', 
+  numeroSerie: ''
 });
 
-const imagemPreview = ref<string | null>(null);
-
 const categorias = [
-  { value: '', label: 'Selecione...' },
-  { value: 'monitores', label: 'Monitores' },
-  { value: 'perifericos', label: 'Periféricos' },
-  { value: 'cabos', label: 'Cabos e Acessórios' },
-  { value: 'componentes', label: 'Componentes' },
-  { value: 'Automação', label: 'Automação' },
-  { value: 'outros', label: 'Outros' },
+  { value: 'hardware', label: 'Hardware (Monitores, PCs, Notebooks)' },
+  { value: 'perifericos', label: 'Periféricos (Mouses, Teclados)' },
+  { value: 'cabos', label: 'Cabos e Adaptadores' },
+  { value: 'rede', label: 'Equipamentos de Rede' },
+  { value: 'consumiveis', label: 'Consumíveis (Tintas, Pilhas)' },
+  { value: 'outros', label: 'Outros' }, // Adicionei "Outros" como pediu
 ];
 
 const locais = [
-  { value: '', label: 'Selecione...' },
-  { value: 'almoxarifado_1', label: 'Almoxarifado 1' },
-  { value: 'almoxarifado_2', label: 'Almoxarifado 2' },
   { value: 'ti_predio_a', label: 'TI - Prédio A' },
   { value: 'ti_predio_b', label: 'TI - Prédio B' },
-  { value: 'deposito', label: 'Depósito Central' },
+  { value: 'almoxarifado', label: 'Almoxarifado Central' },
+  { value: 'armario_01', label: 'Armário 01 (Corredor)' },
 ];
 
-const handleImageUpload = (e: Event) => {
-  const target = e.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      imagemPreview.value = reader.result as string;
-    };
-    reader.readAsDataURL(file);
-  }
+// Lógica Inteligente: Só permite gerar código se for itens "menores"
+const permiteGerarCodigo = computed(() => {
+  const categoriasPermitidas = ['perifericos', 'cabos', 'consumiveis', 'outros'];
+  return categoriasPermitidas.includes(formData.value.categoria);
+});
+
+const gerarCodigoAutomatico = () => {
+  if (!permiteGerarCodigo.value) return; // Segurança extra
+
+  const random = Math.floor(100000 + Math.random() * 900000);
+  // Prefixo muda dependendo da categoria para ficar organizado
+  const prefixo = formData.value.categoria === 'perifericos' ? 'PER' : 'GEN';
+  
+  formData.value.codigoPrincipal = `${prefixo}-${random}`;
+  toast.info('Código automático gerado!');
 };
 
 const handleSubmit = () => {
-  const newMaterial = {
-    foto: imagemPreview.value || 'https://via.placeholder.com/40',
-    nome: formData.value.nome,
-    categoria: categorias.find(c => c.value === formData.value.categoria)?.label || formData.value.categoria,
-    codigo: formData.value.codigoPatrimonio || `PAT-${Date.now()}`,
-    quantidade: parseInt(formData.value.quantidadeAtual) || 0,
-    minimo: parseInt(formData.value.quantidadeMinima) || 0,
-    local: locais.find(l => l.value === formData.value.local)?.label || formData.value.local,
-    descricao: formData.value.descricao,
-    fornecedor: formData.value.fornecedor,
-    valor: parseFloat(formData.value.valor) || 0,
-  };
+  try {
+    if (!formData.value.nome || !formData.value.codigoPrincipal) {
+      toast.error('Nome e Código de Identificação são obrigatórios');
+      return;
+    }
 
-  materialStore.addMaterial(newMaterial);
-  toast.success('Material cadastrado com sucesso!', {
-    description: `${newMaterial.nome} foi adicionado ao estoque.`,
-  });
-  
-  // Resetar formulário
-  formData.value = {
-    nome: '',
-    categoria: '',
-    descricao: '',
-    numeroSerie: '',
-    codigoPatrimonio: '',
-    local: '',
-    quantidadeAtual: '',
-    quantidadeMinima: '',
-    fornecedor: '',
-    dataAquisicao: '',
-    valor: '',
-  };
-  imagemPreview.value = null;
-  
-  // Navegar para listagem
-  setTimeout(() => {
-    emit('navigate', 'listagem');
-  }, 1000);
-};
+    const isPatrimonio = !formData.value.codigoPrincipal.includes('-'); // Se tiver traço (GEN-123), não é patrimônio
 
-const handleCancel = () => {
-  toast.warning('Cadastro cancelado');
-  emit('navigate', 'dashboard');
+    materialStore.addMaterial({
+      codigo: formData.value.codigoPrincipal,
+      patrimonio: isPatrimonio ? formData.value.codigoPrincipal : undefined,
+      numeroSerie: formData.value.numeroSerie,
+      nome: formData.value.nome,
+      categoria: formData.value.categoria,
+      quantidade: Number(formData.value.quantidade),
+      minimo: Number(formData.value.minimo),
+      valor: Number(formData.value.valor),
+    });
+
+    toast.success('Material cadastrado com sucesso!');
+    
+    formData.value = {
+      nome: '',
+      categoria: '',
+      quantidade: '',
+      minimo: '',
+      local: '',
+      valor: '',
+      codigoPrincipal: '',
+      numeroSerie: ''
+    };
+
+  } catch (error: any) {
+    toast.error(error.message || 'Erro ao salvar material');
+  }
 };
 </script>
 
 <template>
-  <div class="flex flex-col gap-10">
-    <!-- Header -->
-    <div
-      class="space-y-3"
-      v-motion
-      :initial="{ opacity: 0, y: -10 }"
-      :enter="{ opacity: 1, y: 0, transition: { duration: 400 } }"
-    >
-      <h1 class="bg-gradient-to-r from-[#1E40AF] to-[#2563EB] bg-clip-text text-transparent">
+  <div class="space-y-6">
+    <div class="space-y-1">
+      <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-700 to-blue-500 bg-clip-text text-transparent">
         Cadastrar Material
       </h1>
-      <p class="text-[#6B7280]">Preencha as informações do novo item de estoque</p>
+      <p class="text-gray-500">Adicione novos itens ao estoque</p>
     </div>
 
-    <form @submit.prevent="handleSubmit">
-      <div class="flex flex-col gap-8">
-        <!-- Seção 1: Informações Básicas -->
-        <div
-          v-motion
-          :initial="{ opacity: 0, y: 20 }"
-          :enter="{ opacity: 1, y: 0, transition: { duration: 400, delay: 100 } }"
-        >
-          <Card>
-            <div class="flex items-center gap-3 mb-8">
-              <div class="w-1.5 h-7 bg-gradient-to-b from-[#2563EB] to-[#1E40AF] rounded-full"></div>
-              <h3 class="font-semibold text-[#111827]">Informações Básicas</h3>
-            </div>
+    <form @submit.prevent="handleSubmit" class="space-y-8">
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card class="md:col-span-2 border-l-4 border-l-blue-500">
+          <div class="flex items-center gap-2 mb-6">
+            <Barcode class="text-blue-500" :size="20" />
+            <h3 class="font-semibold text-gray-800">Identificação</h3>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="md:col-span-2">
               <Input
                 v-model="formData.nome"
                 label="Nome do Material *"
-                placeholder="Ex: Notebook Dell Latitude 5420"
+                placeholder="Ex: Mouse Logitech / Notebook Dell"
                 required
               />
+            </div>
 
-              <Select
-                v-model="formData.categoria"
-                label="Categoria *"
-                :options="categorias"
-                required
-              />
+            <Select
+              v-model="formData.categoria"
+              label="Categoria *"
+              :options="categorias"
+              required
+            />
 
-              <div class="md:col-span-2">
-                <Textarea
-                  v-model="formData.descricao"
-                  label="Descrição"
-                  placeholder="Descreva as características e especificações do material"
-                  :rows="3"
-                />
+            <div class="space-y-1">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Patrimônio ou Código Interno *
+              </label>
+              <div class="flex gap-2">
+                <div class="flex-1">
+                  <Input
+                    v-model="formData.codigoPrincipal"
+                    :placeholder="permiteGerarCodigo ? 'Gere um código ou digite...' : 'Digite o Nº da Etiqueta'"
+                    required
+                  />
+                </div>
+                
+                <button 
+                  type="button"
+                  @click="gerarCodigoAutomatico"
+                  :disabled="!permiteGerarCodigo"
+                  :title="permiteGerarCodigo ? 'Gerar código automático' : 'Selecione Periféricos ou Outros para habilitar'"
+                  :class="[
+                    'px-3 py-2 rounded-lg flex items-center gap-2 transition-all duration-200 border',
+                    permiteGerarCodigo 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 border-blue-600 shadow-md cursor-pointer' 
+                      : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-70'
+                  ]"
+                >
+                  <Wand2 :size="18" />
+                  <span class="text-xs font-medium">Gerar</span>
+                </button>
               </div>
+              
+              <p class="text-xs mt-1 transition-colors" :class="permiteGerarCodigo ? 'text-blue-600 font-medium' : 'text-gray-400'">
+                {{ permiteGerarCodigo 
+                   ? 'Dica: Para periféricos, você pode clicar em "Gerar" para criar um ID.' 
+                   : 'Para Hardware, digite obrigatoriamente o Nº do Patrimônio.' }}
+              </p>
             </div>
-          </Card>
-        </div>
 
-        <!-- Seção 2: Identificação -->
-        <div
-          v-motion
-          :initial="{ opacity: 0, y: 20 }"
-          :enter="{ opacity: 1, y: 0, transition: { duration: 400, delay: 200 } }"
-        >
-          <Card>
-            <div class="flex items-center gap-3 mb-8">
-              <div class="w-1.5 h-7 bg-gradient-to-b from-[#10B981] to-[#059669] rounded-full"></div>
-              <h3 class="font-semibold text-[#111827]">Identificação</h3>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input
+            <div class="space-y-1">
+               <Input
                 v-model="formData.numeroSerie"
                 label="Número de Série"
                 placeholder="Ex: SN123456789"
               />
-
-              <Input
-                v-model="formData.codigoPatrimonio"
-                label="Código de Patrimônio"
-                placeholder="Ex: PAT-2024-001"
-              />
+              <p class="text-xs text-gray-400">Do fabricante (Opcional)</p>
             </div>
-          </Card>
-        </div>
+          </div>
+        </Card>
 
-        <!-- Seção 3: Estoque e Localização -->
-        <div
-          v-motion
-          :initial="{ opacity: 0, y: 20 }"
-          :enter="{ opacity: 1, y: 0, transition: { duration: 400, delay: 300 } }"
-        >
-          <Card>
-            <div class="flex items-center gap-3 mb-8">
-              <div class="w-1.5 h-7 bg-gradient-to-b from-[#F59E0B] to-[#D97706] rounded-full"></div>
-              <h3 class="font-semibold text-[#111827]">Estoque e Localização</h3>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Select
-                v-model="formData.local"
-                label="Local de Armazenamento *"
-                :options="locais"
-                required
-              />
+        <Card class="md:col-span-2">
+          <div class="flex items-center gap-2 mb-6">
+            <Archive class="text-green-600" :size="20" />
+            <h3 class="font-semibold text-gray-800">Estoque e Localização</h3>
+          </div>
 
-              <Input
-                v-model="formData.quantidadeAtual"
-                label="Quantidade Atual *"
-                type="number"
-                placeholder="0"
-                min="0"
-                required
-              />
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Input
+              v-model="formData.quantidade"
+              label="Quantidade Inicial *"
+              type="number"
+              min="0"
+              required
+            />
 
-              <Input
-                v-model="formData.quantidadeMinima"
-                label="Quantidade Mínima *"
-                type="number"
-                placeholder="0"
-                min="0"
-                helper="Sistema gerará alerta quando atingir este valor"
-                required
-              />
-            </div>
-          </Card>
-        </div>
+            <Input
+              v-model="formData.minimo"
+              label="Estoque Mínimo"
+              type="number"
+              min="1"
+              placeholder="Aviso"
+            />
 
-        <!-- Seção 4: Fornecedor e Aquisição -->
-        <div
-          v-motion
-          :initial="{ opacity: 0, y: 20 }"
-          :enter="{ opacity: 1, y: 0, transition: { duration: 400, delay: 400 } }"
-        >
-          <Card>
-            <div class="flex items-center gap-3 mb-8">
-              <div class="w-1.5 h-7 bg-gradient-to-b from-[#8B5CF6] to-[#7C3AED] rounded-full"></div>
-              <h3 class="font-semibold text-[#111827]">Fornecedor e Aquisição</h3>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input
-                v-model="formData.fornecedor"
-                label="Fornecedor"
-                placeholder="Nome do fornecedor"
-              />
+            <Select
+              v-model="formData.local"
+              label="Local de Armazenamento"
+              :options="locais"
+            />
 
-              <Input
+            <div class="md:col-span-1">
+               <Input
                 v-model="formData.valor"
                 label="Valor Unitário (R$)"
                 type="number"
-                placeholder="0.00"
-                min="0"
                 step="0.01"
-              />
-
-              <Input
-                v-model="formData.dataAquisicao"
-                label="Data de Aquisição"
-                type="date"
+                placeholder="0,00"
               />
             </div>
-          </Card>
-        </div>
+          </div>
+        </Card>
+      </div>
 
-        <!-- Seção 5: Foto do Material -->
-        <div
-          v-motion
-          :initial="{ opacity: 0, y: 20 }"
-          :enter="{ opacity: 1, y: 0, transition: { duration: 400, delay: 500 } }"
-        >
-          <Card>
-            <div class="flex items-center gap-3 mb-8">
-              <div class="w-1.5 h-7 bg-gradient-to-b from-[#EC4899] to-[#DB2777] rounded-full"></div>
-              <h3 class="font-semibold text-[#111827]">Foto do Material</h3>
-            </div>
-            
-            <div class="flex flex-col gap-4">
-              <div
-                v-if="imagemPreview"
-                class="relative w-48 h-48 rounded-xl border-2 border-[#E5E7EB] overflow-hidden shadow-md"
-              >
-                <img 
-                  :src="imagemPreview" 
-                  alt="Preview" 
-                  class="w-full h-full object-cover"
-                />
-                <button
-                  type="button"
-                  @click="imagemPreview = null"
-                  class="absolute top-2 right-2 p-2 bg-[#EF4444] text-white rounded-lg hover:bg-[#DC2626] shadow-lg"
-                >
-                  <X :size="16" />
-                </button>
-              </div>
-              <label v-else class="w-48 h-48 border-2 border-dashed border-[#D1D5DB] rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-[#3B82F6] hover:bg-[#F9FAFB] transition-all duration-300">
-                <Upload :size="40" class="text-[#9CA3AF] mb-3" />
-                <span class="text-sm font-medium text-[#6B7280]">Clique para fazer upload</span>
-                <span class="text-xs text-[#9CA3AF] mt-1">PNG, JPG até 5MB</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  @change="handleImageUpload"
-                  class="hidden"
-                />
-              </label>
-            </div>
-          </Card>
-        </div>
-
-        <!-- Botões de Ação -->
-        <div
-          v-motion
-          :initial="{ opacity: 0, y: 20 }"
-          :enter="{ opacity: 1, y: 0, transition: { duration: 400, delay: 600 } }"
-        >
-          <Card class="bg-gradient-to-r from-[#F9FAFB] to-[#F3F4F6] border-2 border-dashed border-[#E5E7EB]">
-            <div class="flex flex-col sm:flex-row items-center justify-end gap-4">
-              <div v-motion :hover="{ scale: 1.05 }" :tap="{ scale: 0.95 }">
-                <Button 
-                  type="button" 
-                  variant="secondary"
-                  @click="handleCancel"
-                >
-                  <X :size="16" />
-                  Cancelar
-                </Button>
-              </div>
-              <div v-motion :hover="{ scale: 1.05 }" :tap="{ scale: 0.95 }">
-                <Button type="submit">
-                  <Save :size="16" />
-                  Salvar Material
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
+      <div class="flex justify-end pt-4">
+        <Button type="submit" size="lg" class="w-full md:w-auto">
+          <Save :size="18" class="mr-2" />
+          Salvar Material
+        </Button>
       </div>
     </form>
   </div>
