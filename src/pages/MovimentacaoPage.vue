@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { ArrowUpRight, ArrowDownRight, Save, Filter, Calendar } from 'lucide-vue-next';
+import { ref, computed, watch } from 'vue';
+import { Save, Calendar, CheckCircle2, ScanBarcode } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
 import Input from '../components/Input.vue';
@@ -14,6 +14,15 @@ import { useMovimentacaoStore } from '../stores/movimentacaoStore';
 const materialStore = useMaterialStore();
 const movimentacaoStore = useMovimentacaoStore();
 
+const formatarData = (dataString: string) => {
+  if (!dataString) return '-';
+  const [ano, mes, dia] = dataString.split('-');
+  return `${dia}/${mes}/${ano}`;
+};
+
+const buscaIdentificacao = ref('');
+const materialEncontradoInfo = ref<string | null>(null);
+
 const formData = ref({
   tipo: 'entrada',
   materialCodigo: '',
@@ -23,7 +32,58 @@ const formData = ref({
   data: new Date().toISOString().split('T')[0],
 });
 
-// Filtros para histórico
+// --- LÓGICA DE BUSCA GLOBAL (CÓDIGO, SÉRIE OU PATRIMÔNIO) ---
+watch(buscaIdentificacao, (novoValor) => {
+  materialEncontradoInfo.value = null; // Reseta aviso
+
+  if (!novoValor || String(novoValor).trim() === '') return;
+  
+  const termoBusca = String(novoValor).trim().toLowerCase();
+
+  // Busca em TUDO: Código do sistema, Patrimônio ou Número de Série
+  const encontrado = materialStore.materials?.find(m => {
+    const codigoSistema = String(m.codigo).trim().toLowerCase();
+    const patrimonio = String(m.patrimonio || '').trim().toLowerCase();
+    const numeroSerie = String(m.numeroSerie || '').trim().toLowerCase();
+    
+    // Se bater com QUALQUER um dos três, encontra o material
+    return codigoSistema === termoBusca || patrimonio === termoBusca || numeroSerie === termoBusca;
+  });
+
+  if (encontrado) {
+    // 1. Seleciona o material no dropdown
+    formData.value.materialCodigo = String(encontrado.codigo);
+    
+    // 2. Define qual tipo de dado foi usado para achar (para feedback visual)
+    let tipoEncontrado = 'Código';
+    if (String(encontrado.patrimonio || '').toLowerCase() === termoBusca) tipoEncontrado = 'Patrimônio';
+    if (String(encontrado.numeroSerie || '').toLowerCase() === termoBusca) tipoEncontrado = 'Nº Série';
+    
+    materialEncontradoInfo.value = `${encontrado.nome} (via ${tipoEncontrado})`;
+    
+    toast.success(`Item identificado: ${encontrado.nome}`);
+  }
+});
+
+// Limpeza automática se o usuário mudar o material manualmente no dropdown
+watch(() => formData.value.materialCodigo, (novoCodigo) => {
+  if (!novoCodigo) return;
+  
+  const mat = materialStore.materials.find(m => String(m.codigo) === String(novoCodigo));
+  if (mat) {
+    // Verifica se o material selecionado tem alguma relação com o que está digitado na busca
+    const termo = String(buscaIdentificacao.value).trim().toLowerCase();
+    const matchCod = String(mat.codigo).toLowerCase() === termo;
+    const matchPat = String(mat.patrimonio || '').toLowerCase() === termo;
+    const matchNS = String(mat.numeroSerie || '').toLowerCase() === termo;
+
+    // Se o termo digitado não bater com nada do material selecionado, limpa o aviso verde
+    if (termo && !matchCod && !matchPat && !matchNS) {
+       materialEncontradoInfo.value = null;
+    }
+  }
+});
+
 const filters = ref({
   dataInicio: '',
   dataFim: '',
@@ -36,17 +96,21 @@ const tipoOptions = [
   { value: 'saida', label: 'Saída' },
 ];
 
-const materialOptions = computed(() => [
-  { value: '', label: 'Selecione um material...' },
-  ...materialStore.materials.map(m => ({ 
-    value: m.codigo, 
-    label: `${m.nome} (${m.codigo}) - Estoque: ${m.quantidade}` 
-  }))
-]);
+const materialOptions = computed(() => {
+  const lista = materialStore.materials || [];
+  return [
+    { value: '', label: 'Selecione um material...' },
+    ...lista.map(m => ({ 
+      value: String(m.codigo), 
+      label: `${m.nome} (Cod: ${m.codigo})` 
+    }))
+  ];
+});
 
-const materialSelecionado = computed(() => 
-  materialStore.materials.find(m => m.codigo === formData.value.materialCodigo)
-);
+const materialSelecionado = computed(() => {
+  const lista = materialStore.materials || [];
+  return lista.find(m => String(m.codigo) === String(formData.value.materialCodigo));
+});
 
 const handleSubmit = () => {
   if (!materialSelecionado.value) {
@@ -54,15 +118,18 @@ const handleSubmit = () => {
     return;
   }
 
-  const quantidade = parseInt(formData.value.quantidade);
+  const quantidade = Math.abs(parseInt(formData.value.quantidade));
   
-  // Validar quantidade para saída
+  if (!quantidade || quantidade <= 0) {
+    toast.error('A quantidade deve ser maior que zero');
+    return;
+  }
+
   if (formData.value.tipo === 'saida' && quantidade > materialSelecionado.value.quantidade) {
     toast.error('Quantidade de saída maior que o estoque disponível!');
     return;
   }
 
-  // Adicionar movimentação
   movimentacaoStore.addMovimentacao({
     tipo: formData.value.tipo as 'entrada' | 'saida',
     materialCodigo: formData.value.materialCodigo,
@@ -75,7 +142,6 @@ const handleSubmit = () => {
     categoria: materialSelecionado.value.categoria
   });
 
-  // Atualizar estoque
   const novaQuantidade = formData.value.tipo === 'entrada' 
     ? materialSelecionado.value.quantidade + quantidade
     : materialSelecionado.value.quantidade - quantidade;
@@ -84,11 +150,11 @@ const handleSubmit = () => {
     quantidade: novaQuantidade
   });
 
-  toast.success('Movimentação registrada com sucesso!', {
-    description: `${formData.value.tipo === 'entrada' ? 'Entrada' : 'Saída'} de ${quantidade} unidade(s)`
-  });
+  toast.success('Movimentação salva com sucesso!');
 
-  // Resetar formulário
+  // Reset do formulário
+  buscaIdentificacao.value = '';
+  materialEncontradoInfo.value = null;
   formData.value = {
     tipo: 'entrada',
     materialCodigo: '',
@@ -99,11 +165,9 @@ const handleSubmit = () => {
   };
 };
 
-// Histórico filtrado
 const historicoFiltrado = computed(() => {
-  let resultado = movimentacaoStore.movimentacoes;
+  let resultado = movimentacaoStore.movimentacoes || [];
 
-  // Filtro por busca
   if (filters.value.busca) {
     const busca = filters.value.busca.toLowerCase();
     resultado = resultado.filter(m => 
@@ -113,12 +177,10 @@ const historicoFiltrado = computed(() => {
     );
   }
 
-  // Filtro por tipo
   if (filters.value.tipo !== 'todos') {
     resultado = resultado.filter(m => m.tipo === filters.value.tipo);
   }
 
-  // Filtro por data
   if (filters.value.dataInicio) {
     resultado = resultado.filter(m => m.data >= filters.value.dataInicio);
   }
@@ -126,7 +188,6 @@ const historicoFiltrado = computed(() => {
     resultado = resultado.filter(m => m.data <= filters.value.dataFim);
   }
 
-  // Ordenar por data (mais recente primeiro)
   return resultado.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 });
 
@@ -143,7 +204,7 @@ const limparFiltros = () => {
 <template>
   <div class="flex flex-col gap-10">
     <div class="space-y-3">
-      <h1 class="bg-gradient-to-r from-[#1E40AF] to-[#2563EB] bg-clip-text text-transparent">
+      <h1 class="bg-gradient-to-r from-[#1E40AF] to-[#2563EB] bg-clip-text text-transparent text-2xl font-bold">
         Movimentação de Estoque
       </h1>
       <p class="text-[#6B7280]">Registre entradas e saídas de materiais</p>
@@ -165,16 +226,30 @@ const limparFiltros = () => {
               required
             />
 
-            <Input
-              v-model="formData.materialCodigo"
-              label="Código do Patrimônio"
-              placeholder="Ex: PAT-2024-001"
-            />
+            <div class="flex flex-col gap-2">
+              <label class="block text-sm font-medium text-gray-700">
+                Identificação (Código, Nº Série ou Patrimônio)
+              </label>
+              <div class="relative">
+                <Input
+                  v-model="buscaIdentificacao"
+                  placeholder="Escaneie ou digite o código..."
+                  class="pl-10"
+                />
+                <ScanBarcode :size="18" class="absolute left-3 top-3 text-gray-400" />
+              </div>
+              
+              <div v-if="materialEncontradoInfo" class="flex items-center gap-2 text-sm text-green-700 bg-green-50 p-2 rounded-md border border-green-100 animate-in fade-in slide-in-from-top-1">
+                <CheckCircle2 :size="16" class="text-green-600" />
+                <span>Encontrado: <strong>{{ materialEncontradoInfo }}</strong></span>
+              </div>
+            </div>
 
             <Select
               v-model="formData.materialCodigo"
-              label="Material"
+              label="Material *"
               :options="materialOptions"
+              required
             />
 
             <Input
@@ -200,16 +275,32 @@ const limparFiltros = () => {
               required
             />
 
-            <div v-if="materialSelecionado" class="md:col-span-2 p-4 bg-[#EFF6FF] rounded-xl">
-              <div class="flex items-center justify-between">
+            <div v-if="materialSelecionado" class="md:col-span-2 p-4 bg-[#EFF6FF] rounded-xl border border-blue-100 animate-in fade-in slide-in-from-top-2">
+              <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <p class="text-sm text-[#6B7280] mb-1">Material Selecionado</p>
-                  <p class="font-semibold text-[#111827]">{{ materialSelecionado.nome }}</p>
-                  <p class="text-sm text-[#6B7280]">Estoque atual: {{ materialSelecionado.quantidade }} unidades</p>
+                  <p class="font-semibold text-[#111827] text-lg">{{ materialSelecionado.nome }}</p>
+                  <div class="flex flex-wrap gap-2 mt-2 text-sm text-[#6B7280]">
+                    <span class="bg-white px-2 py-1 rounded border border-blue-100 text-xs font-medium text-blue-800">
+                      Cod: {{ materialSelecionado.codigo }}
+                    </span>
+                    <span v-if="materialSelecionado.numeroSerie" class="bg-white px-2 py-1 rounded border border-blue-100 text-xs font-medium text-blue-800">
+                      NS: {{ materialSelecionado.numeroSerie }}
+                    </span>
+                    <span v-if="materialSelecionado.patrimonio" class="bg-white px-2 py-1 rounded border border-blue-100 text-xs font-medium text-blue-800">
+                      Pat: {{ materialSelecionado.patrimonio }}
+                    </span>
+                  </div>
                 </div>
-                <Badge :variant="materialSelecionado.quantidade < materialSelecionado.minimo ? 'warning' : 'success'">
-                  {{ materialSelecionado.quantidade < materialSelecionado.minimo ? 'BAIXO' : 'OK' }}
-                </Badge>
+                <div class="flex items-center gap-4">
+                  <div class="text-right">
+                    <p class="text-xs text-gray-500 uppercase font-semibold">Estoque Atual</p>
+                    <p class="text-2xl font-bold text-blue-600">{{ materialSelecionado.quantidade }}</p>
+                  </div>
+                  <Badge :variant="materialSelecionado.quantidade < materialSelecionado.minimo ? 'warning' : 'success'">
+                    {{ materialSelecionado.quantidade < materialSelecionado.minimo ? 'BAIXO' : 'OK' }}
+                  </Badge>
+                </div>
               </div>
             </div>
 
@@ -217,14 +308,14 @@ const limparFiltros = () => {
               <Textarea
                 v-model="formData.observacoes"
                 label="Observações"
-                placeholder="Informações adicionais sobre a movimentação"
+                placeholder="Informações adicionais..."
                 :rows="3"
               />
             </div>
           </div>
         </Card>
 
-        <Card class="bg-gradient-to-r from-[#F9FAFB] to-[#F3F4F6] border-2 border-dashed border-[#E5E7EB]">
+        <Card class="bg-gray-50 border-dashed border-2">
           <div class="flex justify-end">
             <Button type="submit">
               <Save :size="16" />
@@ -241,141 +332,68 @@ const limparFiltros = () => {
           <Calendar :size="24" class="text-[#10B981]" />
         </div>
         <div>
-          <h3 class="font-semibold text-[#111827]">Histórico de Movimentações</h3>
-          <p class="text-sm text-[#6B7280]">{{ historicoFiltrado.length }} movimentações encontradas</p>
+          <h3 class="font-semibold text-[#111827]">Histórico</h3>
+          <p class="text-sm text-[#6B7280]">{{ historicoFiltrado.length }} registros</p>
         </div>
       </div>
 
       <div class="mb-6 p-4 bg-[#F8F9FA] rounded-xl">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
-          <Input
-            v-model="filters.busca"
-            placeholder="Buscar por material ou responsável..."
-          />
-
-          <Input
-            v-model="filters.dataInicio"
-            type="date"
-            label="Data Início"
-          />
-
-          <Input
-            v-model="filters.dataFim"
-            type="date"
-            label="Data Fim"
-          />
-
+          <Input v-model="filters.busca" placeholder="Buscar..." />
+          <Input v-model="filters.dataInicio" type="date" label="De" />
+          <Input v-model="filters.dataFim" type="date" label="Até" />
           <Select
             v-model="filters.tipo"
             label="Tipo"
-            :options="[
-              { value: 'todos', label: 'Todos' },
-              { value: 'entrada', label: 'Entrada' },
-              { value: 'saida', label: 'Saída' }
-            ]"
+            :options="[{ value: 'todos', label: 'Todos' }, ...tipoOptions]"
           />
         </div>
-        <Button variant="ghost" size="sm" @click="limparFiltros">
-          Limpar Filtros
-        </Button>
+        <Button variant="ghost" size="sm" @click="limparFiltros">Limpar Filtros</Button>
       </div>
 
-      <div class="hidden lg:block overflow-x-auto">
+      <div class="overflow-x-auto">
         <table class="w-full">
-          <thead class="bg-[#F8F9FA] border-b border-[#E5E7EB]">
+          <thead class="bg-gray-50 border-b">
             <tr>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">Data</th>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">Tipo</th>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">Material</th>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">Código</th>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">Qtd</th>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">Responsável</th>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">Valor</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qtd</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Resp.</th>
             </tr>
           </thead>
-          <tbody class="bg-white divide-y divide-[#F1F3F5]">
-            <tr
-              v-for="mov in historicoFiltrado"
-              :key="mov.id"
-              class="hover:bg-[#F8F9FA] transition-colors"
-            >
-              <td class="px-6 py-4 text-[#6B7280]">
-                {{ new Date(mov.data).toLocaleDateString('pt-BR') }}
+          <tbody class="divide-y divide-gray-200">
+            <tr v-for="mov in historicoFiltrado" :key="mov.id" class="hover:bg-gray-50">
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {{ formatarData(mov.data) }}
               </td>
-              <td class="px-6 py-4">
+              <td class="px-6 py-4 whitespace-nowrap">
                 <Badge :variant="mov.tipo === 'entrada' ? 'success' : 'error'">
                   {{ mov.tipo === 'entrada' ? 'ENTRADA' : 'SAÍDA' }}
                 </Badge>
               </td>
-              <td class="px-6 py-4 font-medium text-[#111827]">{{ mov.materialNome }}</td>
-              <td class="px-6 py-4 text-[#6B7280] font-mono text-sm">{{ mov.materialCodigo }}</td>
               <td class="px-6 py-4">
-                <span 
-                  class="font-bold"
-                  :class="mov.tipo === 'entrada' ? 'text-[#10B981]' : 'text-[#EF4444]'"
-                >
+                <div class="text-sm font-medium text-gray-900">{{ mov.materialNome }}</div>
+                <div class="text-sm text-gray-500">
+                   <span v-if="mov.tipo === 'saida'">{{ mov.responsavel }}</span>
+                   <span v-else>{{ mov.materialCodigo }}</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span :class="mov.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'" class="font-bold">
                   {{ mov.tipo === 'entrada' ? '+' : '-' }}{{ mov.quantidade }}
                 </span>
               </td>
-              <td class="px-6 py-4 text-[#6B7280]">{{ mov.responsavel }}</td>
-              <td class="px-6 py-4 text-[#6B7280]">
-                {{ mov.valor ? `R$ ${mov.valor.toFixed(2)}` : '-' }}
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {{ mov.responsavel }}
               </td>
             </tr>
           </tbody>
         </table>
-      </div>
-
-      <div class="lg:hidden space-y-4">
-        <Card
-          v-for="mov in historicoFiltrado"
-          :key="mov.id"
-          size="small"
-        >
-          <div class="flex items-start gap-4 mb-4">
-            <div 
-              class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-              :class="mov.tipo === 'entrada' ? 'bg-[#ECFDF5] text-[#10B981]' : 'bg-[#FEF2F2] text-[#EF4444]'"
-            >
-              <component :is="mov.tipo === 'entrada' ? ArrowUpRight : ArrowDownRight" :size="24" />
-            </div>
-            <div class="flex-1">
-              <div class="flex items-start justify-between mb-2">
-                <div>
-                  <p class="font-semibold text-[#111827]">{{ mov.materialNome }}</p>
-                  <p class="text-sm text-[#6B7280]">{{ mov.materialCodigo }}</p>
-                </div>
-                <Badge :variant="mov.tipo === 'entrada' ? 'success' : 'error'">
-                  {{ mov.tipo === 'entrada' ? 'ENTRADA' : 'SAÍDA' }}
-                </Badge>
-              </div>
-            </div>
-          </div>
-          
-          <div class="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span class="text-[#9CA3AF]">Data:</span>
-              <span class="ml-2 text-[#111827]">{{ new Date(mov.data).toLocaleDateString('pt-BR') }}</span>
-            </div>
-            <div>
-              <span class="text-[#9CA3AF]">Qtd:</span>
-              <span 
-                class="ml-2 font-bold"
-                :class="mov.tipo === 'entrada' ? 'text-[#10B981]' : 'text-[#EF4444]'"
-              >
-                {{ mov.tipo === 'entrada' ? '+' : '-' }}{{ mov.quantidade }}
-              </span>
-            </div>
-            <div class="col-span-2">
-              <span class="text-[#9CA3AF]">Responsável:</span>
-              <span class="ml-2 text-[#111827]">{{ mov.responsavel }}</span>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div v-if="historicoFiltrado.length === 0" class="text-center py-12">
-        <p class="text-[#9CA3AF]">Nenhuma movimentação encontrada</p>
+        
+        <div v-if="historicoFiltrado.length === 0" class="text-center py-8 text-gray-500">
+          Nenhum registro encontrado.
+        </div>
       </div>
     </Card>
   </div>
