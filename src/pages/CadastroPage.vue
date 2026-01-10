@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { 
-  Package, 
   Save, 
   Archive,
   Barcode,
-  Wand2 
+  Wand2,
+  Scan,
+  X,
+  Lock
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
@@ -13,8 +15,45 @@ import Input from '../components/Input.vue';
 import Select from '../components/Select.vue';
 import Button from '../components/Button.vue';
 import { useMaterialStore } from '../stores/materialStore';
+import { useAuthStore } from '../stores/authStore'; // Importar AuthStore
 
 const materialStore = useMaterialStore();
+const authStore = useAuthStore(); // Usar AuthStore
+
+// --- Lógica de Autenticação ---
+const showAuthModal = ref(false);
+const authInput = ref('');
+const authInputRef = ref<HTMLInputElement | null>(null);
+
+const abrirModalAuth = () => {
+  // Validação prévia do formulário antes de pedir crachá
+  if (!formData.value.nome || !formData.value.codigoPrincipal || !formData.value.categoria || !formData.value.quantidade) {
+    toast.error('Preencha os campos obrigatórios antes de salvar');
+    return;
+  }
+  
+  showAuthModal.value = true;
+  authInput.value = '';
+  // Foca no input automaticamente para o leitor de código de barras funcionar direto
+  nextTick(() => {
+    authInputRef.value?.focus();
+  });
+};
+
+const confirmarAuth = () => {
+  const usuario = authStore.validarCracha(authInput.value);
+  
+  if (usuario) {
+    toast.success(`Autorizado por: ${usuario.nome}`);
+    showAuthModal.value = false;
+    processarSalvamento(); // Chama a função real de salvar
+  } else {
+    toast.error('Crachá não autorizado ou desconhecido');
+    authInput.value = ''; // Limpa para tentar de novo
+    authInputRef.value?.focus();
+  }
+};
+// -----------------------------
 
 const formData = ref({
   nome: '',
@@ -33,7 +72,7 @@ const categorias = [
   { value: 'cabos', label: 'Cabos e Adaptadores' },
   { value: 'rede', label: 'Equipamentos de Rede' },
   { value: 'consumiveis', label: 'Consumíveis (Tintas, Pilhas)' },
-  { value: 'outros', label: 'Outros' }, // Adicionei "Outros" como pediu
+  { value: 'outros', label: 'Outros' },
 ];
 
 const locais = [
@@ -47,31 +86,25 @@ const locais = [
   { value: 'organizador_02', label: 'Organizador 02' },
 ];
 
-// Lógica Inteligente: Só permite gerar código se for itens "menores"
 const permiteGerarCodigo = computed(() => {
   const categoriasPermitidas = ['perifericos', 'cabos', 'consumiveis', 'outros'];
   return categoriasPermitidas.includes(formData.value.categoria);
 });
 
 const gerarCodigoAutomatico = () => {
-  if (!permiteGerarCodigo.value) return; // Segurança extra
+  if (!permiteGerarCodigo.value) return; 
 
   const random = Math.floor(100000 + Math.random() * 900000);
-  // Prefixo muda dependendo da categoria para ficar organizado
   const prefixo = formData.value.categoria === 'perifericos' ? 'PER' : 'GEN';
   
   formData.value.codigoPrincipal = `${prefixo}-${random}`;
   toast.info('Código automático gerado!');
 };
 
-const handleSubmit = () => {
+// Renomeei a função original para ser chamada apenas APÓS autenticação
+const processarSalvamento = () => {
   try {
-    if (!formData.value.nome || !formData.value.codigoPrincipal) {
-      toast.error('Nome e Código de Identificação são obrigatórios');
-      return;
-    }
-
-    const isPatrimonio = !formData.value.codigoPrincipal.includes('-'); // Se tiver traço (GEN-123), não é patrimônio
+    const isPatrimonio = !formData.value.codigoPrincipal.includes('-');
 
     materialStore.addMaterial({
       codigo: formData.value.codigoPrincipal,
@@ -104,7 +137,42 @@ const handleSubmit = () => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 relative">
+    
+    <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all scale-100 border border-gray-100">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <Lock class="text-blue-600" />
+            Autorização Necessária
+          </h2>
+          <button @click="showAuthModal = false" class="text-gray-400 hover:text-red-500 transition-colors">
+            <X :size="24" />
+          </button>
+        </div>
+
+        <div class="flex flex-col items-center gap-4 py-4">
+          <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center animate-pulse border-2 border-blue-200">
+            <Scan :size="40" class="text-blue-600" />
+          </div>
+          <p class="text-center text-gray-600 font-medium">
+            Por favor, bipar seu crachá<br>para confirmar o cadastro.
+          </p>
+          
+          <input 
+            ref="authInputRef"
+            v-model="authInput"
+            @keyup.enter="confirmarAuth"
+            type="password"
+            class="w-full text-center border-2 border-gray-300 rounded-lg py-2 px-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all mt-2"
+            placeholder="Aguardando leitura..."
+            autocomplete="off"
+          />
+          <p class="text-xs text-gray-400">Pressione Enter após digitar se não for automático</p>
+        </div>
+      </div>
+    </div>
+
     <div class="space-y-1">
       <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-700 to-blue-500 bg-clip-text text-transparent">
         Cadastrar Material
@@ -112,7 +180,7 @@ const handleSubmit = () => {
       <p class="text-gray-500">Adicione novos itens ao estoque</p>
     </div>
 
-    <form @submit.prevent="handleSubmit" class="space-y-8">
+    <form @submit.prevent="abrirModalAuth" class="space-y-8">
       
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card class="md:col-span-2 border-l-4 border-l-blue-500">
@@ -230,7 +298,7 @@ const handleSubmit = () => {
       </div>
 
       <div class="flex justify-end pt-4">
-        <Button type="submit" size="lg" class="w-full md:w-auto">
+        <Button type="submit" size="lg" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700">
           <Save :size="18" class="mr-2" />
           Salvar Material
         </Button>
