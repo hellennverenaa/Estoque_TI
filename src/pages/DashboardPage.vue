@@ -1,352 +1,167 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { 
+  LayoutDashboard, 
   Package, 
   AlertTriangle, 
-  TrendingUp, 
-  ArrowUpRight,
-  ArrowDownRight,
-  Plus,
-  List,
-  FileText,
-  Activity
+  ArrowRightLeft, 
+  TrendingUp,
+  TrendingDown 
 } from 'lucide-vue-next';
 import Card from '../components/Card.vue';
-import Button from '../components/Button.vue';
 import { useMaterialStore } from '../stores/materialStore';
 import { useMovimentacaoStore } from '../stores/movimentacaoStore';
-
-const emit = defineEmits<{
-  navigate: [page: string]
-}>();
 
 const materialStore = useMaterialStore();
 const movimentacaoStore = useMovimentacaoStore();
 
-// Calcular estatísticas REAIS
-const totalItens = computed(() => 
-  materialStore.materials.reduce((sum, m) => sum + m.quantidade, 0)
-);
+// --- CORREÇÃO DE DATA ---
+// Transforma "2026-01-09" direto em "09/01/2026" sem passar pelo fuso horário
+const formatarData = (dataString: string) => {
+  if (!dataString) return '-';
+  const [ano, mes, dia] = dataString.split('-');
+  return `${dia}/${mes}/${ano}`;
+};
 
-const abaixoDoMinimo = computed(() => 
-  materialStore.materials.filter(m => m.quantidade < m.minimo).length
-);
+// Total de Materiais Cadastrados
+const totalMateriais = computed(() => (materialStore.materials || []).length);
 
-const valorTotal = computed(() => 
-  materialStore.materials.reduce((sum, m) => sum + (m.quantidade * (m.valor || 0)), 0)
-);
-
-// Movimentações do mês (últimos 30 dias)
-const movimentacoesMes = computed(() => {
-  const trintaDiasAtras = new Date();
-  trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-  const dataLimite = trintaDiasAtras.toISOString().split('T')[0];
-  
-  return movimentacaoStore.movimentacoes.filter(m => m.data >= dataLimite);
+// Valor Total em Estoque
+const valorTotalEstoque = computed(() => {
+  const lista = materialStore.materials || [];
+  return lista.reduce((acc, m) => acc + ((m.quantidade || 0) * (m.valor || 0)), 0);
 });
 
-const totalMovimentacoesMes = computed(() => movimentacoesMes.value.length);
-
-const stats = computed(() => [
-  { 
-    label: 'Total de Itens', 
-    value: totalItens.value.toString(), 
-    change: '+12%', 
-    trend: 'up',
-    icon: Package,
-    color: 'text-[#2563EB]',
-    bgColor: '#EFF6FF'
-  },
-  { 
-    label: 'Abaixo do Mínimo', 
-    value: abaixoDoMinimo.value.toString(), 
-    change: abaixoDoMinimo.value > 0 ? '+5%' : '-100%', 
-    trend: abaixoDoMinimo.value > 0 ? 'up' : 'down',
-    icon: AlertTriangle,
-    color: 'text-[#F59E0B]',
-    bgColor: '#FFFBEB'
-  },
-  { 
-    label: 'Movimentações (mês)', 
-    value: totalMovimentacoesMes.value.toString(), 
-    change: '+18%', 
-    trend: 'up',
-    icon: TrendingUp,
-    color: 'text-[#10B981]',
-    bgColor: '#ECFDF5'
-  },
-  { 
-    label: 'Valor Total', 
-    value: `R$ ${valorTotal.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 
-    change: '+7%', 
-    trend: 'up',
-    icon: Activity,
-    color: 'text-[#8B5CF6]',
-    bgColor: '#F5F3FF'
-  },
-]);
-
-// Movimentações recentes REAIS
-const recentMovements = computed(() => 
-  movimentacaoStore.movimentacoesRecentes.map(m => ({
-    id: m.id,
-    item: m.materialNome,
-    type: m.tipo === 'entrada' ? 'Entrada' : 'Saída',
-    qty: m.quantidade,
-    user: m.responsavel,
-    date: new Date(m.data).toLocaleDateString('pt-BR')
-  }))
-);
-
-const shortcuts = [
-  { label: 'Cadastrar Material', icon: Plus, page: 'cadastro', variant: 'primary' as const },
-  { label: 'Consultar Itens', icon: List, page: 'listagem', variant: 'secondary' as const },
-  { label: 'Relatórios', icon: FileText, page: 'relatorios', variant: 'secondary' as const },
-];
-
-// Movimentações por categoria REAIS
-const categoriesData = computed(() => {
-  const data = movimentacaoStore.movimentacoesPorCategoria;
-  const maxValue = Math.max(...data.map(d => d.quantidade), 100);
-  
-  const colors = ['#2563EB', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444'];
-  
-  return data.slice(0, 5).map((item, index) => ({
-    category: item.categoria,
-    value: Math.round((item.quantidade / maxValue) * 100),
-    color: colors[index % colors.length]
-  }));
+// Itens com Estoque Baixo
+const itensBaixoEstoque = computed(() => {
+  const lista = materialStore.materials || [];
+  return lista.filter(m => m.quantidade < m.minimo);
 });
+
+// Últimas Movimentações (Pega as 5 últimas)
+const ultimasMovimentacoes = computed(() => {
+  const lista = movimentacaoStore.movimentacoes || [];
+  return [...lista]
+    .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+    .slice(0, 5);
+});
+
+const formatarMoeda = (valor: number) => {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+};
 </script>
 
 <template>
-  <div class="flex flex-col gap-12">
-    <!-- Header -->
-    <div 
-      class="space-y-3"
-      v-motion
-      :initial="{ opacity: 0, y: -10 }"
-      :enter="{ opacity: 1, y: 0, transition: { duration: 400 } }"
-    >
-      <h1 class="bg-gradient-to-r from-[#1E40AF] to-[#2563EB] bg-clip-text text-transparent">
-        Dashboard
+  <div class="space-y-8">
+    <div class="space-y-2">
+      <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-700 to-blue-500 bg-clip-text text-transparent">
+        Visão Geral
       </h1>
-      <p class="text-lg text-[#6B7280]">Visão geral do estoque de materiais de TI</p>
+      <p class="text-gray-500">Resumo do seu estoque em tempo real</p>
     </div>
 
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-      <div
-        v-for="(stat, index) in stats"
-        :key="index"
-        v-motion
-        :initial="{ opacity: 0, y: 20, scale: 0.95 }"
-        :enter="{ 
-          opacity: 1, 
-          y: 0, 
-          scale: 1,
-          transition: { duration: 400, delay: index * 100 }
-        }"
-        :hover="{ y: -4, transition: { duration: 200 } }"
-      >
-        <Card class="h-full">
-          <div class="flex items-start justify-between gap-6">
-            <div class="flex-1 space-y-4">
-              <p class="text-xs font-semibold text-[#6B7280] uppercase tracking-wider">{{ stat.label }}</p>
-              <p class="text-3xl font-bold text-[#111827]">{{ stat.value }}</p>
-              <div class="flex items-center gap-2">
-                <component 
-                  :is="stat.trend === 'up' ? ArrowUpRight : ArrowDownRight"
-                  :size="16"
-                  :class="stat.trend === 'up' ? 'text-[#10B981]' : 'text-[#EF4444]'"
-                />
-                <span 
-                  class="text-sm font-semibold"
-                  :class="stat.trend === 'up' ? 'text-[#10B981]' : 'text-[#EF4444]'"
-                >
-                  {{ stat.change }}
-                </span>
-                <span class="text-sm text-[#9CA3AF]">vs mês anterior</span>
-              </div>
-            </div>
-            <div 
-              class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-              :style="{ backgroundColor: stat.bgColor, opacity: 0.8 }"
-            >
-              <component :is="stat.icon" :size="28" :class="stat.color" />
-            </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <Card class="border-l-4 border-l-blue-500">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500 font-medium">Total de Materiais</p>
+            <h3 class="text-2xl font-bold text-gray-800 mt-1">{{ totalMateriais }}</h3>
           </div>
-        </Card>
-      </div>
+          <div class="p-3 bg-blue-50 rounded-lg">
+            <Package class="text-blue-600" :size="24" />
+          </div>
+        </div>
+      </Card>
+
+      <Card class="border-l-4 border-l-green-500">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500 font-medium">Valor em Estoque</p>
+            <h3 class="text-2xl font-bold text-gray-800 mt-1">{{ formatarMoeda(valorTotalEstoque) }}</h3>
+          </div>
+          <div class="p-3 bg-green-50 rounded-lg">
+            <TrendingUp class="text-green-600" :size="24" />
+          </div>
+        </div>
+      </Card>
+
+      <Card class="border-l-4 border-l-red-500">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500 font-medium">Estoque Crítico</p>
+            <h3 class="text-2xl font-bold text-gray-800 mt-1">{{ itensBaixoEstoque.length }}</h3>
+          </div>
+          <div class="p-3 bg-red-50 rounded-lg">
+            <AlertTriangle class="text-red-600" :size="24" />
+          </div>
+        </div>
+      </Card>
+
+      <Card class="border-l-4 border-l-purple-500">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500 font-medium">Movimentações</p>
+            <h3 class="text-2xl font-bold text-gray-800 mt-1">
+              {{ (movimentacaoStore.movimentacoes || []).length }}
+            </h3>
+          </div>
+          <div class="p-3 bg-purple-50 rounded-lg">
+            <ArrowRightLeft class="text-purple-600" :size="24" />
+          </div>
+        </div>
+      </Card>
     </div>
 
-    <!-- Atalhos rápidos -->
-    <div 
-      class="flex flex-wrap gap-4"
-      v-motion
-      :initial="{ opacity: 0 }"
-      :enter="{ opacity: 1, transition: { delay: 500 } }"
-    >
-      <div
-        v-for="(shortcut, index) in shortcuts"
-        :key="index"
-        v-motion
-        :hover="{ scale: 1.05 }"
-        :tap="{ scale: 0.95 }"
-      >
-        <Button
-          :variant="shortcut.variant"
-          size="lg"
-          @click="emit('navigate', shortcut.page)"
-        >
-          <component :is="shortcut.icon" :size="20" />
-          {{ shortcut.label }}
-        </Button>
-      </div>
-    </div>
-
-    <!-- Grid de 2 colunas -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <!-- Movimentações Recentes -->
-      <div
-        v-motion
-        :initial="{ opacity: 0, x: -20 }"
-        :enter="{ opacity: 1, x: 0, transition: { duration: 500, delay: 600 } }"
-      >
-        <Card class="h-full">
-          <div class="flex items-center justify-between mb-8">
-            <h3 class="text-[#111827]">Movimentações Recentes</h3>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              @click="emit('navigate', 'movimentacao')"
-            >
-              Ver todas
-            </Button>
-          </div>
-          
-          <div v-if="recentMovements.length > 0" class="flex flex-col gap-5">
-            <div
-              v-for="(movement, idx) in recentMovements"
-              :key="movement.id"
-              class="flex items-start gap-5 pb-5 border-b border-[#F1F3F5] last:border-0 last:pb-0"
-              v-motion
-              :initial="{ opacity: 0, x: -10 }"
-              :enter="{ opacity: 1, x: 0, transition: { delay: 700 + idx * 100 } }"
-              :hover="{ x: 4, transition: { duration: 200 } }"
-            >
-              <div 
-                class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-                :class="movement.type === 'Entrada' ? 'text-[#10B981]' : 'text-[#EF4444]'"
-                :style="{ 
-                  backgroundColor: movement.type === 'Entrada' ? '#ECFDF5' : '#FEF2F2',
-                  opacity: 0.8
-                }"
-              >
-                <component 
-                  :is="movement.type === 'Entrada' ? ArrowUpRight : ArrowDownRight" 
-                  :size="24" 
-                />
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-[15px] font-semibold text-[#111827] mb-1.5 truncate">{{ movement.item }}</p>
-                <p class="text-sm text-[#6B7280]">{{ movement.user }} • {{ movement.date }}</p>
-              </div>
-              <div class="text-right flex-shrink-0">
-                <p 
-                  class="text-lg font-bold"
-                  :class="movement.type === 'Entrada' ? 'text-[#10B981]' : 'text-[#EF4444]'"
-                >
-                  {{ movement.type === 'Entrada' ? '+' : '-' }}{{ movement.qty }}
-                </p>
-                <p class="text-xs text-[#9CA3AF] uppercase tracking-wider font-medium">{{ movement.type }}</p>
-              </div>
+      <Card class="h-full">
+        <div class="flex items-center gap-2 mb-6">
+          <AlertTriangle class="text-red-500" :size="20" />
+          <h3 class="font-semibold text-gray-800">Alertas de Reposição</h3>
+        </div>
+        <div v-if="itensBaixoEstoque.length === 0" class="text-center py-8 text-gray-400">
+           <p>Tudo certo! Nenhum item em falta.</p>
+        </div>
+        <div v-else class="space-y-4">
+          <div v-for="item in itensBaixoEstoque.slice(0, 5)" :key="item.codigo" 
+               class="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
+            <div>
+              <p class="font-medium text-gray-800">{{ item.nome }}</p>
+              <p class="text-sm text-gray-500">Cód: {{ item.codigo }}</p>
+            </div>
+            <div class="text-right">
+              <p class="font-bold text-red-600">{{ item.quantidade }} un</p>
+              <p class="text-xs text-red-400">Mín: {{ item.minimo }}</p>
             </div>
           </div>
-          <div v-else class="text-center py-8 text-[#9CA3AF]">
-            Nenhuma movimentação recente
-          </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
 
-      <!-- Gráfico -->
-      <div
-        v-motion
-        :initial="{ opacity: 0, x: 20 }"
-        :enter="{ opacity: 1, x: 0, transition: { duration: 500, delay: 600 } }"
-      >
-        <Card class="h-full">
-          <div class="flex items-center justify-between mb-8">
-            <h3 class="text-[#111827]">Movimentações por Categoria</h3>
-            <select class="text-sm border border-[#E5E7EB] rounded-xl px-4 py-2.5 bg-white hover:border-[#2563EB] transition-colors focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]">
-              <option>Último mês</option>
-              <option>Últimos 3 meses</option>
-              <option>Último ano</option>
-            </select>
-          </div>
-          
-          <div v-if="categoriesData.length > 0" class="flex flex-col gap-6">
-            <div
-              v-for="(item, index) in categoriesData"
-              :key="index"
-              class="space-y-3"
-              v-motion
-              :initial="{ opacity: 0, x: -20 }"
-              :enter="{ opacity: 1, x: 0, transition: { delay: 800 + index * 100 } }"
-            >
-              <div class="flex items-center justify-between">
-                <span class="text-sm font-medium text-[#374151]">{{ item.category }}</span>
-                <span class="text-sm font-bold text-[#111827]">{{ item.value }}%</span>
-              </div>
-              <div class="h-2 bg-[#F1F3F5] rounded-full overflow-hidden">
-                <div 
-                  class="h-full rounded-full transition-all duration-1000 ease-out"
-                  :style="{ 
-                    backgroundColor: item.color,
-                    width: `${item.value}%`
-                  }"
-                />
-              </div>
-            </div>
-          </div>
-          <div v-else class="text-center py-8 text-[#9CA3AF]">
-            Nenhum dado de movimentação
-          </div>
-        </Card>
-      </div>
-    </div>
+      <Card class="h-full">
+        <div class="flex items-center gap-2 mb-6">
+          <LayoutDashboard class="text-blue-500" :size="20" />
+          <h3 class="font-semibold text-gray-800">Últimas Movimentações</h3>
+        </div>
 
-    <!-- Alertas -->
-    <div
-      v-if="abaixoDoMinimo > 0"
-      v-motion
-      :initial="{ opacity: 0, y: 20 }"
-      :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 1200 } }"
-    >
-      <Card variant="warning">
-        <div class="flex items-start gap-5">
-          <div 
-            class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-            style="background-color: #F59E0B; opacity: 0.1"
-          >
-            <AlertTriangle :size="24" class="text-[#F59E0B]" style="opacity: 1" />
-          </div>
-          <div class="flex-1">
-            <h4 class="font-semibold text-[#92400E] mb-2">
-              Atenção: {{ abaixoDoMinimo }} itens abaixo do estoque mínimo
-            </h4>
-            <p class="text-[15px] text-[#92400E] mb-5 leading-relaxed opacity-90">
-              Alguns materiais precisam de reposição urgente para evitar ruptura de estoque.
-            </p>
-            <div v-motion :hover="{ scale: 1.05 }" :tap="{ scale: 0.95 }">
-              <Button 
-                variant="secondary" 
-                size="md"
-                @click="emit('navigate', 'alertas')"
-              >
-                Ver itens críticos
-              </Button>
+        <div v-if="ultimasMovimentacoes.length === 0" class="text-center py-8 text-gray-400">
+          <p>Nenhuma movimentação registrada.</p>
+        </div>
+
+        <div v-else class="space-y-4">
+          <div v-for="mov in ultimasMovimentacoes" :key="mov.id" 
+               class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+            <div class="flex items-center gap-3">
+              <div :class="mov.tipo === 'entrada' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'"
+                   class="p-2 rounded-full">
+                <component :is="mov.tipo === 'entrada' ? TrendingUp : TrendingDown" :size="16" />
+              </div>
+              <div>
+                <p class="font-medium text-gray-800">{{ mov.materialNome }}</p>
+                <p class="text-xs text-gray-500">{{ formatarData(mov.data) }}</p>
+              </div>
             </div>
+            <span :class="mov.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'" class="font-bold">
+              {{ mov.tipo === 'entrada' ? '+' : '-' }}{{ mov.quantidade }}
+            </span>
           </div>
         </div>
       </Card>
