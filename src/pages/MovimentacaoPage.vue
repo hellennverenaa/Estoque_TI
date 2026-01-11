@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue';
-import { Save, Calendar, CheckCircle2, ScanBarcode, Lock, Scan, X, CheckCircle, ArrowRight } from 'lucide-vue-next';
+import { 
+  Save, Calendar, CheckCircle2, ScanBarcode, Lock, Scan, X, 
+  CheckCircle, ArrowRight, MapPin 
+} from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
 import Input from '../components/Input.vue';
@@ -18,13 +21,14 @@ const authStore = useAuthStore();
 
 // --- Controles ---
 const showAuthModal = ref(false);
-const showSuccessModal = ref(false); // Novo Modal
+const showSuccessModal = ref(false);
 const authInput = ref('');
 const authInputRef = ref<HTMLInputElement | null>(null);
 
 // Dados do formulário
 const buscaIdentificacao = ref('');
 const materialEncontradoInfo = ref<string | null>(null);
+
 const formData = ref({
   tipo: 'entrada',
   materialCodigo: '',
@@ -32,19 +36,40 @@ const formData = ref({
   responsavel: '',
   observacoes: '',
   data: new Date().toISOString().split('T')[0],
+  local: '' 
 });
 
-// ... (Manter watchs e computeds de busca iguais) ...
+// Lista de Locais
+const locais = [
+  { value: 'prateleira_nivel_01', label: 'Prateleira Nível 01' },
+  { value: 'prateleira_nivel_02', label: 'Prateleira Nível 02' },
+  { value: 'prateleira_nivel_03', label: 'Prateleira Nível 03' },
+  { value: 'gaveta_01', label: 'Gaveta 01' },
+  { value: 'gaveta_02', label: 'Gaveta 02' },
+  { value: 'gaveta_03', label: 'Gaveta 03' },
+  { value: 'organizador_01', label: 'Organizador 01' },
+  { value: 'organizador_02', label: 'Organizador 02' },
+];
+
+const tipoOptions = [
+  { value: 'entrada', label: 'Entrada' },
+  { value: 'saida', label: 'Saída' },
+];
+
+// --- Watches e Computeds ---
+
 watch(buscaIdentificacao, (novoValor) => {
   materialEncontradoInfo.value = null; 
   if (!novoValor || String(novoValor).trim() === '') return;
   const termoBusca = String(novoValor).trim().toLowerCase();
+  
   const encontrado = materialStore.materials?.find(m => {
     const cod = String(m.codigo).trim().toLowerCase();
     const pat = String(m.patrimonio || '').trim().toLowerCase();
     const ns = String(m.numeroSerie || '').trim().toLowerCase();
     return cod === termoBusca || pat === termoBusca || ns === termoBusca;
   });
+
   if (encontrado) {
     formData.value.materialCodigo = String(encontrado.codigo);
     materialEncontradoInfo.value = encontrado.nome;
@@ -56,10 +81,26 @@ const materialSelecionado = computed(() => {
   return materialStore.materials?.find(m => String(m.codigo) === String(formData.value.materialCodigo));
 });
 
+// LÓGICA INTELIGENTE DE LOCAL:
+// Se o item já tem um local "simples" (ex: Gaveta 01), preenche o select.
+// Se o item tem múltiplos locais (ex: Gaveta 01 + Gaveta 02), deixa o select vazio 
+// para obrigar o usuário a escolher para onde vai ESSA movimentação específica.
+watch(materialSelecionado, (novoMaterial) => {
+  if (novoMaterial) {
+    const localAtual = novoMaterial.local || '';
+    // Verifica se o local atual é um dos locais padrões (simples)
+    const isLocalSimples = locais.some(l => l.value === localAtual);
+    
+    // Se for simples, preenche. Se for composto, deixa vazio para o usuário escolher o destino.
+    formData.value.local = isLocalSimples ? localAtual : '';
+  }
+});
+
 // --- Fluxo de Auth e Salvar ---
 const abrirModalAuth = () => {
   if (!materialSelecionado.value) { toast.error('Selecione um material'); return; }
   if (!formData.value.quantidade) { toast.error('Informe a quantidade'); return; }
+  if (!formData.value.local && formData.value.tipo === 'entrada') { toast.error('Informe o local de destino'); return; }
   
   showAuthModal.value = true;
   authInput.value = '';
@@ -81,31 +122,53 @@ const confirmarAuth = () => {
 
 const processarMovimentacao = () => {
   const quantidade = Math.abs(parseInt(formData.value.quantidade));
+  const material = materialSelecionado.value!;
   
+  // 1. Calcula Nova Quantidade
+  const novaQuantidade = formData.value.tipo === 'entrada' 
+    ? material.quantidade + quantidade
+    : material.quantidade - quantidade;
+
+  // 2. Lógica de Múltiplos Locais
+  let novoLocalString = material.local || '';
+  const localDestino = formData.value.local;
+
+  if (formData.value.tipo === 'entrada') {
+    // Se o destino selecionado ainda não faz parte dos locais do item, adiciona.
+    // Ex: "Gaveta 1" vira "Gaveta 1 + Gaveta 2"
+    if (novoLocalString && !novoLocalString.includes(localDestino)) {
+      novoLocalString = `${novoLocalString} + ${localDestino}`;
+    } else if (!novoLocalString) {
+      novoLocalString = localDestino;
+    }
+  }
+  
+  // Se zerou o estoque, limpa o local para não confundir
+  if (novaQuantidade <= 0) {
+    novoLocalString = '';
+  }
+
+  // 3. Atualiza Store
+  materialStore.updateMaterial(formData.value.materialCodigo, {
+    quantidade: novaQuantidade,
+    local: novoLocalString // Salva a string combinada
+  });
+
+  // 4. Salva Histórico
   movimentacaoStore.addMovimentacao({
     tipo: formData.value.tipo as 'entrada' | 'saida',
     materialCodigo: formData.value.materialCodigo,
-    materialNome: materialSelecionado.value!.nome,
+    materialNome: material.nome,
     quantidade: quantidade,
     responsavel: formData.value.responsavel,
     observacoes: formData.value.observacoes,
     data: formData.value.data,
-    valor: materialSelecionado.value!.valor ? materialSelecionado.value!.valor * quantidade : undefined,
-    categoria: materialSelecionado.value!.categoria
+    valor: material.valor ? material.valor * quantidade : undefined,
+    categoria: material.categoria
   });
 
-  const novaQuantidade = formData.value.tipo === 'entrada' 
-    ? materialSelecionado.value!.quantidade + quantidade
-    : materialSelecionado.value!.quantidade - quantidade;
-
-  materialStore.updateMaterial(formData.value.materialCodigo, {
-    quantidade: novaQuantidade
-  });
-
-  // Mostra modal de sucesso em vez de toast
   showSuccessModal.value = true;
 
-  // Limpa formulário
   buscaIdentificacao.value = '';
   materialEncontradoInfo.value = null;
   formData.value = {
@@ -115,13 +178,12 @@ const processarMovimentacao = () => {
     responsavel: '',
     observacoes: '',
     data: new Date().toISOString().split('T')[0],
+    local: ''
   };
 };
 
-// ... (Manter código de histórico/tabela igual) ...
 const formatarData = (d: string) => d.split('-').reverse().join('/');
-const historicoFiltrado = computed(() => movimentacaoStore.movimentacoes || []); // Simplificado para brevidade
-const tipoOptions = [{ value: 'entrada', label: 'Entrada' }, { value: 'saida', label: 'Saída' }];
+const historicoFiltrado = computed(() => movimentacaoStore.movimentacoes || []); 
 const materialOptions = computed(() => materialStore.materials.map(m => ({ value: m.codigo, label: m.nome })));
 </script>
 
@@ -132,8 +194,7 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
       <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100">
         <div class="flex justify-between items-center mb-6">
           <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <Lock class="text-blue-600" />
-            Autorizar
+            <Lock class="text-blue-600" /> Autorizar
           </h2>
           <button @click="showAuthModal = false"><X :size="24" class="text-gray-400" /></button>
         </div>
@@ -159,21 +220,15 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
           <CheckCircle :size="40" class="text-green-600" />
         </div>
         <h2 class="text-2xl font-bold text-gray-900 mb-2">Registrado!</h2>
-        <p class="text-gray-500 mb-8">A movimentação foi salva com sucesso no histórico.</p>
-        <button 
-          @click="showSuccessModal = false"
-          class="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-        >
-          <span>Continuar</span>
-          <ArrowRight :size="18" />
+        <p class="text-gray-500 mb-8">Movimentação concluída.</p>
+        <button @click="showSuccessModal = false" class="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-2">
+          <span>Continuar</span> <ArrowRight :size="18" />
         </button>
       </div>
     </div>
 
     <div class="space-y-3">
-      <h1 class="bg-gradient-to-r from-[#1E40AF] to-[#2563EB] bg-clip-text text-transparent text-2xl font-bold">
-        Movimentação de Estoque
-      </h1>
+      <h1 class="bg-gradient-to-r from-[#1E40AF] to-[#2563EB] bg-clip-text text-transparent text-2xl font-bold">Movimentação de Estoque</h1>
       <p class="text-[#6B7280]">Registre entradas e saídas</p>
     </div>
 
@@ -191,7 +246,7 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
             <div class="flex flex-col gap-2">
               <label class="block text-sm font-medium text-gray-700">Busca Rápida</label>
               <div class="relative">
-                <Input v-model="buscaIdentificacao" placeholder="Bipe o código aqui..." class="pl-10" />
+                <Input v-model="buscaIdentificacao" placeholder="Bipe o código..." class="pl-10" />
                 <ScanBarcode :size="18" class="absolute left-3 top-3 text-gray-400" />
               </div>
               <div v-if="materialEncontradoInfo" class="text-sm text-green-700 bg-green-50 p-2 rounded border border-green-100">
@@ -201,12 +256,31 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
 
             <Select v-model="formData.materialCodigo" label="Material *" :options="materialOptions" required />
             <Input v-model="formData.quantidade" label="Quantidade *" type="number" required />
+            
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <label class="block text-sm font-medium text-gray-700 ml-1">Local / Destino *</label>
+                <span v-if="formData.tipo === 'entrada'" class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Adicionar Local</span>
+              </div>
+              <div class="relative">
+                <Select 
+                  v-model="formData.local" 
+                  :options="locais" 
+                  required 
+                  placeholder="Onde será guardado?"
+                />
+                <div v-if="materialSelecionado && materialSelecionado.local && !materialSelecionado.local.includes(formData.local) && formData.local" 
+                     class="absolute -bottom-5 right-0 text-xs text-blue-600 flex items-center gap-1 font-medium">
+                   <MapPin :size="12"/> Será adicionado aos locais existentes
+                </div>
+              </div>
+            </div>
+
             <Input v-model="formData.data" label="Data *" type="date" required />
             
             <div class="space-y-1">
               <label class="block text-sm font-medium text-gray-700">Responsável</label>
-              
-              <input type="text" value="Será preenchido pelo crachá" disabled class="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-400 italic" />
+              <input type="text" value="Será preenchido pelo crachá" disabled class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-400 italic text-sm" />
             </div>
 
             <div class="md:col-span-2">
@@ -215,12 +289,27 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
           </div>
         </Card>
 
+        <Card v-if="materialSelecionado" class="bg-blue-50 border border-blue-100">
+          <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+             <div class="flex items-center gap-4">
+               <div class="p-3 bg-white rounded-xl shadow-sm border border-blue-100">
+                  <MapPin :size="24" class="text-blue-600"/>
+               </div>
+               <div>
+                 <p class="text-xs text-blue-600 font-bold uppercase tracking-wider">Locais Onde Existe</p>
+                 <p class="text-gray-900 font-medium text-lg leading-tight">{{ materialSelecionado.local || 'Sem local definido' }}</p>
+               </div>
+             </div>
+             <div class="sm:ml-auto sm:text-right border-t sm:border-t-0 border-blue-200 pt-2 sm:pt-0">
+               <p class="text-xs text-gray-500 uppercase tracking-wider">Saldo Total</p>
+               <p class="text-2xl font-bold text-gray-900">{{ materialSelecionado.quantidade }}</p>
+             </div>
+          </div>
+        </Card>
+
         <Card class="bg-gray-50 border-dashed border-2">
           <div class="flex justify-end">
-            <Button type="submit">
-              <Lock :size="16" class="mr-2" />
-              Validar e Registrar
-            </Button>
+            <Button type="submit"><Lock :size="16" class="mr-2" /> Validar e Registrar</Button>
           </div>
         </Card>
       </div>
