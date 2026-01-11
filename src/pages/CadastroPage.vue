@@ -2,7 +2,7 @@
 import { ref, computed, nextTick } from 'vue';
 import { 
   Save, Archive, Barcode, Wand2, Scan, X, Lock, CheckCircle, Plus,
-  Info, AlertCircle // Novos ícones para as instruções
+  Info, AlertCircle 
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
@@ -11,6 +11,7 @@ import Select from '../components/Select.vue';
 import Button from '../components/Button.vue';
 import { useMaterialStore } from '../stores/materialStore';
 import { useAuthStore } from '../stores/authStore';
+import { LOCAIS, CATEGORIAS } from '../constants/lists'; // <--- IMPORTAÇÃO NOVA
 
 const materialStore = useMaterialStore();
 const authStore = useAuthStore();
@@ -33,37 +34,16 @@ const formData = ref({
   numeroSerie: ''
 });
 
-const categorias = [
-  { value: 'hardware', label: 'Hardware (Notebooks, PCs)' },
-  { value: 'perifericos', label: 'Periféricos (Mouses, Teclados)' },
-  { value: 'cabos', label: 'Cabos e Adaptadores' },
-  { value: 'rede', label: 'Equipamentos de Rede' },
-  { value: 'consumiveis', label: 'Consumíveis (Tintas, Pilhas)' },
-  { value: 'monitor', label: 'Monitores' },
-  { value: 'automacao', label: 'Automação' },
-  { value: 'outros', label: 'Outros' },
-];
-
-const locais = [
-  { value: 'prateleira_nivel_01', label: 'Prateleira Nível 01' },
-  { value: 'prateleira_nivel_02', label: 'Prateleira Nível 02' },
-  { value: 'prateleira_nivel_03', label: 'Prateleira Nível 03' },
-  { value: 'gaveta_01', label: 'Gaveta 01' },
-  { value: 'gaveta_02', label: 'Gaveta 02' },
-  { value: 'gaveta_03', label: 'Gaveta 03' },
-  { value: 'gaveta_04', label: 'Gaveta 04' },
-  { value: 'organizador_01', label: 'Organizador 01' },
-  { value: 'organizador_02', label: 'Organizador 02' },
-];
+// (Removemos as constantes locais e usamos as importadas LOCAIS e CATEGORIAS)
 
 const permiteGerarCodigo = computed(() => {
-  return ['perifericos', 'cabos', 'consumiveis', 'outros'].includes(formData.value.categoria);
+  return ['perifericos', 'cabos', 'consumiveis', 'outros', 'automacao'].includes(formData.value.categoria);
 });
 
 const gerarCodigoAutomatico = () => {
   if (!permiteGerarCodigo.value) return; 
   const random = Math.floor(100000 + Math.random() * 900000);
-  const prefixo = formData.value.categoria === 'perifericos' ? 'PER' : 'GEN';
+  const prefixo = formData.value.categoria.substring(0, 3).toUpperCase();
   formData.value.codigoPrincipal = `${prefixo}-${random}`;
   toast.info('Código gerado com sucesso!');
 };
@@ -176,8 +156,8 @@ const processarSalvamento = () => {
             <div class="text-sm text-blue-800">
               <p class="font-bold mb-1">Como preencher:</p>
               <ul class="list-disc pl-4 space-y-1 opacity-90">
-                <li>Para <strong>Hardware</strong> (Notebooks, Monitores), use o número da etiqueta de <strong>Patrimônio</strong>.</li>
-                <li>Para <strong>Periféricos/Cabos</strong>, selecione a categoria correta e clique no botão <Wand2 :size="12" class="inline"/> <strong>Gerar</strong> para criar um código interno.</li>
+                <li>Para <strong>Hardware</strong>, use o número da etiqueta de <strong>Patrimônio</strong>.</li>
+                <li>Para <strong>Periféricos</strong>, clique em <Wand2 :size="12" class="inline"/> <strong>Gerar</strong> para criar um código interno.</li>
               </ul>
             </div>
           </div>
@@ -187,7 +167,7 @@ const processarSalvamento = () => {
               <Input v-model="formData.nome" label="Nome do Material *" placeholder="Ex: Mouse Dell Wireless" required />
             </div>
 
-            <Select v-model="formData.categoria" label="Categoria *" :options="categorias" required />
+            <Select v-model="formData.categoria" label="Categoria *" :options="CATEGORIAS" required />
 
             <div class="space-y-1">
               <label class="block text-sm font-medium text-gray-700 mb-1">Código / Patrimônio *</label>
@@ -204,13 +184,12 @@ const processarSalvamento = () => {
                       ? 'bg-blue-600 text-white hover:bg-blue-700 border-blue-600 shadow-sm hover:shadow cursor-pointer' 
                       : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                   ]"
-                  title="Habilitado apenas para Periféricos e Outros"
+                  title="Gerar código automático"
                 >
                   <Wand2 :size="18" />
                   <span class="hidden sm:inline">Gerar</span>
                 </button>
               </div>
-              <p class="text-xs text-gray-400 mt-1" v-if="!permiteGerarCodigo">Selecione Periféricos ou Outros para gerar código.</p>
             </div>
 
             <Input v-model="formData.numeroSerie" label="Número de Série (S/N)" placeholder="Opcional" />
@@ -228,8 +207,8 @@ const processarSalvamento = () => {
             <div class="text-sm text-orange-800">
               <p class="font-bold mb-1">Dicas de Armazenamento:</p>
               <ul class="list-disc pl-4 space-y-1 opacity-90">
-                <li>Defina um <strong>Estoque Mínimo</strong> para receber alertas quando o item estiver acabando.</li>
-                <li>Mantenha o <strong>Local</strong> atualizado para facilitar a auditoria.</li>
+                <li>Defina um <strong>Estoque Mínimo</strong> para alertas.</li>
+                <li>Mantenha o <strong>Local</strong> atualizado.</li>
               </ul>
             </div>
           </div>
@@ -237,7 +216,9 @@ const processarSalvamento = () => {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Input v-model="formData.quantidade" label="Quantidade Inicial *" type="number" min="0" required />
             <Input v-model="formData.minimo" label="Estoque Mínimo (Alerta)" type="number" min="1" />
-            <Select v-model="formData.local" label="Local de Armazenamento" :options="locais" />
+            
+            <Select v-model="formData.local" label="Local de Armazenamento" :options="LOCAIS" />
+            
             <div class="md:col-span-1">
               <Input v-model="formData.valor" label="Valor Unitário (R$)" type="number" step="0.01" placeholder="0,00" />
             </div>

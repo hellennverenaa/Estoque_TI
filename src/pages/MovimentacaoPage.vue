@@ -14,6 +14,7 @@ import Badge from '../components/Badge.vue';
 import { useMaterialStore } from '../stores/materialStore';
 import { useMovimentacaoStore } from '../stores/movimentacaoStore';
 import { useAuthStore } from '../stores/authStore';
+import { LOCAIS } from '../constants/lists'; // <--- IMPORTAÇÃO NOVA
 
 const materialStore = useMaterialStore();
 const movimentacaoStore = useMovimentacaoStore();
@@ -25,7 +26,6 @@ const showSuccessModal = ref(false);
 const authInput = ref('');
 const authInputRef = ref<HTMLInputElement | null>(null);
 
-// Dados do formulário
 const buscaIdentificacao = ref('');
 const materialEncontradoInfo = ref<string | null>(null);
 
@@ -39,24 +39,10 @@ const formData = ref({
   local: '' 
 });
 
-// Lista de Locais
-const locais = [
-  { value: 'prateleira_nivel_01', label: 'Prateleira Nível 01' },
-  { value: 'prateleira_nivel_02', label: 'Prateleira Nível 02' },
-  { value: 'prateleira_nivel_03', label: 'Prateleira Nível 03' },
-  { value: 'gaveta_01', label: 'Gaveta 01' },
-  { value: 'gaveta_02', label: 'Gaveta 02' },
-  { value: 'gaveta_03', label: 'Gaveta 03' },
-  { value: 'organizador_01', label: 'Organizador 01' },
-  { value: 'organizador_02', label: 'Organizador 02' },
-];
-
 const tipoOptions = [
   { value: 'entrada', label: 'Entrada' },
   { value: 'saida', label: 'Saída' },
 ];
-
-// --- Watches e Computeds ---
 
 watch(buscaIdentificacao, (novoValor) => {
   materialEncontradoInfo.value = null; 
@@ -82,21 +68,17 @@ const materialSelecionado = computed(() => {
 });
 
 // LÓGICA INTELIGENTE DE LOCAL:
-// Se o item já tem um local "simples" (ex: Gaveta 01), preenche o select.
-// Se o item tem múltiplos locais (ex: Gaveta 01 + Gaveta 02), deixa o select vazio 
-// para obrigar o usuário a escolher para onde vai ESSA movimentação específica.
 watch(materialSelecionado, (novoMaterial) => {
   if (novoMaterial) {
     const localAtual = novoMaterial.local || '';
-    // Verifica se o local atual é um dos locais padrões (simples)
-    const isLocalSimples = locais.some(l => l.value === localAtual);
+    // Verifica se o local atual é um dos locais padrões (simples) definidos no arquivo de listas
+    const isLocalSimples = LOCAIS.some(l => l.value === localAtual);
     
-    // Se for simples, preenche. Se for composto, deixa vazio para o usuário escolher o destino.
+    // Se for simples, preenche. Se for composto (múltiplos), deixa vazio para forçar escolha.
     formData.value.local = isLocalSimples ? localAtual : '';
   }
 });
 
-// --- Fluxo de Auth e Salvar ---
 const abrirModalAuth = () => {
   if (!materialSelecionado.value) { toast.error('Selecione um material'); return; }
   if (!formData.value.quantidade) { toast.error('Informe a quantidade'); return; }
@@ -124,18 +106,14 @@ const processarMovimentacao = () => {
   const quantidade = Math.abs(parseInt(formData.value.quantidade));
   const material = materialSelecionado.value!;
   
-  // 1. Calcula Nova Quantidade
   const novaQuantidade = formData.value.tipo === 'entrada' 
     ? material.quantidade + quantidade
     : material.quantidade - quantidade;
 
-  // 2. Lógica de Múltiplos Locais
   let novoLocalString = material.local || '';
   const localDestino = formData.value.local;
 
   if (formData.value.tipo === 'entrada') {
-    // Se o destino selecionado ainda não faz parte dos locais do item, adiciona.
-    // Ex: "Gaveta 1" vira "Gaveta 1 + Gaveta 2"
     if (novoLocalString && !novoLocalString.includes(localDestino)) {
       novoLocalString = `${novoLocalString} + ${localDestino}`;
     } else if (!novoLocalString) {
@@ -143,18 +121,15 @@ const processarMovimentacao = () => {
     }
   }
   
-  // Se zerou o estoque, limpa o local para não confundir
   if (novaQuantidade <= 0) {
     novoLocalString = '';
   }
 
-  // 3. Atualiza Store
   materialStore.updateMaterial(formData.value.materialCodigo, {
     quantidade: novaQuantidade,
-    local: novoLocalString // Salva a string combinada
+    local: novoLocalString 
   });
 
-  // 4. Salva Histórico
   movimentacaoStore.addMovimentacao({
     tipo: formData.value.tipo as 'entrada' | 'saida',
     materialCodigo: formData.value.materialCodigo,
@@ -201,15 +176,7 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
         <div class="flex flex-col items-center py-4">
           <Scan :size="48" class="text-blue-600 mb-4 animate-pulse" />
           <p class="text-gray-600 mb-4">Bipe o crachá para confirmar</p>
-          <input 
-            ref="authInputRef"
-            v-model="authInput"
-            @keyup.enter="confirmarAuth"
-            type="password"
-            class="w-full text-center border-2 border-gray-200 rounded-lg py-3 px-4 text-lg"
-            placeholder="Leia o código..."
-            autocomplete="off"
-          />
+          <input ref="authInputRef" v-model="authInput" @keyup.enter="confirmarAuth" type="password" class="w-full text-center border-2 border-gray-200 rounded-lg py-3 px-4 text-lg" placeholder="Leia o código..." autocomplete="off" />
         </div>
       </div>
     </div>
@@ -263,14 +230,8 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
                 <span v-if="formData.tipo === 'entrada'" class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Adicionar Local</span>
               </div>
               <div class="relative">
-                <Select 
-                  v-model="formData.local" 
-                  :options="locais" 
-                  required 
-                  placeholder="Onde será guardado?"
-                />
-                <div v-if="materialSelecionado && materialSelecionado.local && !materialSelecionado.local.includes(formData.local) && formData.local" 
-                     class="absolute -bottom-5 right-0 text-xs text-blue-600 flex items-center gap-1 font-medium">
+                <Select v-model="formData.local" :options="LOCAIS" required placeholder="Onde será guardado?" />
+                <div v-if="materialSelecionado && materialSelecionado.local && !materialSelecionado.local.includes(formData.local) && formData.local" class="absolute -bottom-5 right-0 text-xs text-blue-600 flex items-center gap-1 font-medium">
                    <MapPin :size="12"/> Será adicionado aos locais existentes
                 </div>
               </div>

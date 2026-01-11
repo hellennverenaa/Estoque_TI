@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { Save, X, Archive, Barcode } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
@@ -7,8 +8,9 @@ import Input from '../components/Input.vue';
 import Select from '../components/Select.vue';
 import Button from '../components/Button.vue';
 import { useMaterialStore } from '../stores/materialStore';
+import { LOCAIS, CATEGORIAS } from '../constants/lists'; // <--- IMPORTAÇÃO NOVA
 
-const emit = defineEmits<{ navigate: [page: string] }>();
+const router = useRouter();
 const materialStore = useMaterialStore();
 
 const loading = ref(true);
@@ -25,26 +27,6 @@ const formData = ref({
   patrimonio: '',
   criadoPor: ''
 });
-
-const categorias = [
-  { value: 'hardware', label: 'Hardware' },
-  { value: 'perifericos', label: 'Periféricos' },
-  { value: 'cabos', label: 'Cabos' },
-  { value: 'rede', label: 'Rede' },
-  { value: 'consumiveis', label: 'Consumíveis' },
-  { value: 'outros', label: 'Outros' },
-];
-
-const locais = [
-  { value: 'prateleira_nivel_01', label: 'Prateleira Nível 01' },
-  { value: 'prateleira_nivel_02', label: 'Prateleira Nível 02' },
-  { value: 'prateleira_nivel_03', label: 'Prateleira Nível 03' },
-  { value: 'gaveta_01', label: 'Gaveta 01' },
-  { value: 'gaveta_02', label: 'Gaveta 02' },
-  { value: 'gaveta_03', label: 'Gaveta 03' },
-  { value: 'organizador_01', label: 'Organizador 01' },
-  { value: 'organizador_02', label: 'Organizador 02' },
-];
 
 onMounted(() => {
   try {
@@ -71,7 +53,7 @@ onMounted(() => {
   } catch (e) {
     console.error(e);
     toast.error('Erro ao carregar item para edição.');
-    emit('navigate', 'listagem');
+    router.push('/listagem');
   }
 });
 
@@ -90,7 +72,7 @@ const handleSave = () => {
 
     toast.success('Alterações salvas!');
     localStorage.removeItem('material_to_edit');
-    emit('navigate', 'listagem');
+    router.push('/listagem');
   } catch (e: any) {
     toast.error(e.message);
   }
@@ -128,7 +110,7 @@ const handleSave = () => {
             <div class="md:col-span-2">
               <Input v-model="formData.nome" label="Nome do Material *" required />
             </div>
-            <Select v-model="formData.categoria" label="Categoria *" :options="categorias" required />
+            <Select v-model="formData.categoria" label="Categoria *" :options="CATEGORIAS" required />
             <Input v-model="formData.numeroSerie" label="Número de Série" />
           </div>
         </Card>
@@ -141,14 +123,14 @@ const handleSave = () => {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Input v-model="formData.quantidade" label="Quantidade Atual" type="number" required />
             <Input v-model="formData.minimo" label="Mínimo (Alerta)" type="number" />
-            <Select v-model="formData.local" label="Local" :options="locais" />
+            <Select v-model="formData.local" label="Local" :options="LOCAIS" />
             <Input v-model="formData.valor" label="Valor Unit. (R$)" type="number" step="0.01" />
           </div>
         </Card>
       </div>
 
       <div class="flex justify-end gap-4">
-        <Button type="button" variant="secondary" @click="emit('navigate', 'listagem')">
+        <Button type="button" variant="secondary" @click="router.push('/listagem')">
           <X :size="16" class="mr-2" /> Cancelar
         </Button>
         <Button type="submit">
