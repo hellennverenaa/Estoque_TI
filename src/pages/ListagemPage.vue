@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue';
+import { useRouter } from 'vue-router'; // 1. Importação do Router
 import { 
   Search, Edit2, Trash2, Eye, Download, FileSpreadsheet, FileText, Filter, 
   X, CheckCircle, Lock 
@@ -14,11 +15,11 @@ import { useMaterialStore } from '../stores/materialStore';
 import { useAuthStore } from '../stores/authStore'; 
 import { exportToCSV, exportToExcel, exportToPDF, prepareMaterialsData } from '../utils/exportUtils';
 
-// --- STORES ---
+const router = useRouter(); // 2. Instância do Router
 const materialStore = useMaterialStore();
 const authStore = useAuthStore();
 
-// --- DADOS ESTÁTICOS (Definidos no início para garantir existência) ---
+// --- DADOS ESTÁTICOS ---
 const statusOptions = [
   { value: 'todos', label: 'Todos os Status' },
   { value: 'ok', label: 'Em Estoque' },
@@ -26,7 +27,7 @@ const statusOptions = [
   { value: 'sem', label: 'Sem Estoque' }
 ];
 
-// --- VARIAVEIS REATIVAS ---
+// --- ESTADO (REFS) ---
 const searchTerm = ref('');
 const filterCategoria = ref('todas');
 const filterStatus = ref('todos');
@@ -39,11 +40,66 @@ const materialToEdit = ref<any>(null);
 const authInput = ref('');
 const authInputRef = ref<HTMLInputElement | null>(null);
 
-const emit = defineEmits<{ navigate: [page: string] }>();
+// --- AÇÕES ---
+const handleEditClick = (material: any) => {
+  materialToEdit.value = material;
+  showEditAuthModal.value = true;
+  authInput.value = '';
+  showDetailsModal.value = false;
+  nextTick(() => {
+    if (authInputRef.value) authInputRef.value.focus();
+  });
+};
+
+const confirmEditAuth = () => {
+  const usuario = authStore.validarCracha(authInput.value);
+  const dono = materialToEdit.value?.criadoPor; 
+
+  if (!usuario) {
+    toast.error('Crachá não reconhecido.');
+    authInput.value = '';
+    return;
+  }
+
+  // Verifica permissão (apenas se tiver dono registrado)
+  if (dono && usuario.nome !== dono) {
+    toast.error(`Acesso Negado! Item cadastrado por: ${dono}`);
+    authInput.value = '';
+    return;
+  }
+
+  toast.success(`Acesso liberado: ${usuario.nome}`);
+  
+  if (materialToEdit.value) {
+    // Salva o ID e navega usando a rota
+    localStorage.setItem('material_to_edit', materialToEdit.value.codigo);
+    showEditAuthModal.value = false;
+    
+    // 3. NAVEGAÇÃO VIA ROTA
+    router.push('/edicao'); 
+  }
+};
+
+const handleView = (material: any) => {
+  selectedMaterial.value = material;
+  showDetailsModal.value = true;
+};
+
+const handleDelete = (codigo: string) => {
+  if (confirm('Tem certeza que deseja excluir este item?')) {
+    materialStore.deleteMaterial(codigo);
+    toast.success('Item excluído.');
+  }
+};
+
+const limparFiltros = () => {
+  searchTerm.value = '';
+  filterCategoria.value = 'todas';
+  filterStatus.value = 'todos';
+};
 
 // --- COMPUTEDS ---
 const categorias = computed(() => {
-  // Proteção contra lista vazia ou indefinida
   const lista = materialStore.materials || [];
   const cats = [...new Set(lista.map(m => m.categoria))];
   return [
@@ -85,62 +141,6 @@ const getStatusBadge = (quantidade: number, minimo: number) => {
   if (quantidade === 0) return { variant: 'error' as const, label: 'Esgotado' };
   if (quantidade < minimo) return { variant: 'warning' as const, label: 'Baixo' };
   return { variant: 'success' as const, label: 'OK' };
-};
-
-// --- AÇÕES DO USUÁRIO ---
-const handleEditClick = (material: any) => {
-  materialToEdit.value = material;
-  showEditAuthModal.value = true;
-  authInput.value = '';
-  showDetailsModal.value = false;
-  nextTick(() => {
-    if (authInputRef.value) authInputRef.value.focus();
-  });
-};
-
-const confirmEditAuth = () => {
-  const usuario = authStore.validarCracha(authInput.value);
-  // Uso de ?. para evitar erro se materialToEdit for nulo
-  const dono = materialToEdit.value?.criadoPor; 
-
-  if (!usuario) {
-    toast.error('Crachá não reconhecido.');
-    authInput.value = '';
-    return;
-  }
-
-  // Verifica permissão (apenas se tiver dono registrado)
-  if (dono && usuario.nome !== dono) {
-    toast.error(`Acesso Negado! Item cadastrado por: ${dono}`);
-    authInput.value = '';
-    return;
-  }
-
-  toast.success(`Acesso liberado: ${usuario.nome}`);
-  
-  if (materialToEdit.value) {
-    localStorage.setItem('material_to_edit', materialToEdit.value.codigo);
-    showEditAuthModal.value = false;
-    emit('navigate', 'edicao');
-  }
-};
-
-const handleView = (material: any) => {
-  selectedMaterial.value = material;
-  showDetailsModal.value = true;
-};
-
-const handleDelete = (codigo: string) => {
-  if (confirm('Tem certeza que deseja excluir este item?')) {
-    materialStore.deleteMaterial(codigo);
-    toast.success('Item excluído.');
-  }
-};
-
-const limparFiltros = () => {
-  searchTerm.value = '';
-  filterCategoria.value = 'todas';
-  filterStatus.value = 'todos';
 };
 
 // --- EXPORTAÇÃO ---
