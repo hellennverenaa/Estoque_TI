@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
 import { useRouter } from 'vue-router'; // 1. Importação do Router
 import { 
   Search, Edit2, Trash2, Eye, Download, FileSpreadsheet, FileText, Filter, 
@@ -18,6 +18,10 @@ import { exportToCSV, exportToExcel, exportToPDF, prepareMaterialsData } from '.
 const router = useRouter(); // 2. Instância do Router
 const materialStore = useMaterialStore();
 const authStore = useAuthStore();
+
+onMounted(() => {
+  materialStore.ensureLoaded().catch(() => undefined);
+});
 
 // --- DADOS ESTÁTICOS ---
 const statusOptions = [
@@ -72,7 +76,7 @@ const confirmEditAuth = () => {
   
   if (materialToEdit.value) {
     // Salva o ID e navega usando a rota
-    localStorage.setItem('material_to_edit', materialToEdit.value.codigo);
+    localStorage.setItem('material_to_edit', materialToEdit.value.id);
     showEditAuthModal.value = false;
     
     // 3. NAVEGAÇÃO VIA ROTA
@@ -87,8 +91,15 @@ const handleView = (material: any) => {
 
 const handleDelete = (codigo: string) => {
   if (confirm('Tem certeza que deseja excluir este item?')) {
-    materialStore.deleteMaterial(codigo);
-    toast.success('Item excluído.');
+    const material = materialStore.materials.find(m => m.codigo === codigo);
+    if (!material) {
+      toast.error('Item não encontrado.');
+      return;
+    }
+
+    materialStore.deleteMaterial(material.id)
+      .then(() => toast.success('Item excluído.'))
+      .catch((e: any) => toast.error(e?.message || 'Erro ao excluir item.'));
   }
 };
 

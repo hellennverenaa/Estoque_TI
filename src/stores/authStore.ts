@@ -18,6 +18,7 @@ export const useAuthStore = defineStore('auth', () => {
     // Lista inicial OBRIGATÓRIA (Se não tiver nada salvo)
     return [
       { id: '1', nome: 'Admin Inicial', codigoCracha: '123456', cargo: 'Admin' }, // Use este crachá para entrar
+      { id: '3', nome: 'Hendrius', codigoCracha: '3020495', cargo: 'Admin' },
       { id: '1', nome: 'Admin', codigoCracha: '18783', cargo: 'Admin' },
       { id: '2', nome: 'Operador Teste', codigoCracha: '999888', cargo: 'Operador' }
     ];

@@ -16,6 +16,7 @@ const materialStore = useMaterialStore();
 const loading = ref(true);
 
 const formData = ref({
+  id: '',
   codigo: '',
   nome: '',
   categoria: '',
@@ -28,15 +29,18 @@ const formData = ref({
   criadoPor: ''
 });
 
-onMounted(() => {
+onMounted(async () => {
   try {
-    const codigo = localStorage.getItem('material_to_edit');
-    if (!codigo) throw new Error('Código não fornecido');
+    await materialStore.ensureLoaded();
 
-    const material = materialStore.materials.find(m => m.codigo === codigo);
+    const id = localStorage.getItem('material_to_edit');
+    if (!id) throw new Error('ID não fornecido');
+
+    const material = materialStore.getById(id);
     if (!material) throw new Error('Material não encontrado');
 
     formData.value = {
+      id: material.id,
       codigo: material.codigo,
       nome: material.nome,
       categoria: material.categoria,
@@ -50,23 +54,23 @@ onMounted(() => {
     };
     
     loading.value = false;
-  } catch (e) {
+  } catch (e: any) {
     console.error(e);
-    toast.error('Erro ao carregar item para edição.');
+    toast.error(e?.message || 'Erro ao carregar item para edição.');
     router.push('/listagem');
   }
 });
 
-const handleSave = () => {
+const handleSave = async () => {
   try {
-    materialStore.updateMaterial(formData.value.codigo, {
+    await materialStore.updateMaterial(formData.value.id, {
       nome: formData.value.nome,
       categoria: formData.value.categoria,
       quantidade: Number(formData.value.quantidade),
       minimo: Number(formData.value.minimo),
-      local: formData.value.local,
-      valor: Number(formData.value.valor),
-      numeroSerie: formData.value.numeroSerie,
+      local: formData.value.local || undefined,
+      valor: formData.value.valor ? Number(formData.value.valor) : undefined,
+      numeroSerie: formData.value.numeroSerie || undefined,
       patrimonio: formData.value.patrimonio
     });
 

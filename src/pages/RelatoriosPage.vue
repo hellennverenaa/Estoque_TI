@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue';
 import { jsPDF } from 'jspdf'; // Importação direta
 import autoTable from 'jspdf-autotable'; // Importação direta
 import {
@@ -25,6 +25,11 @@ import { toast } from 'vue-sonner';
 // ============================================
 const materialStore = useMaterialStore();
 const movimentacaoStore = useMovimentacaoStore();
+
+onMounted(() => {
+  materialStore.ensureLoaded().catch(() => undefined);
+  movimentacaoStore.ensureLoaded().catch(() => undefined);
+});
 
 // ============================================
 // STATE - FILTROS

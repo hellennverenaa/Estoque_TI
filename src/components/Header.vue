@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Menu, Bell, User, LogOut, AlertTriangle, CheckCircle2 } from 'lucide-vue-next';
 import { useMaterialStore } from '../stores/materialStore';
 
@@ -18,13 +18,17 @@ const emit = defineEmits<{
 
 const materialStore = useMaterialStore();
 
+onMounted(() => {
+  materialStore.ensureLoaded().catch(() => undefined);
+});
+
 // Estados dos menus
 const showNotifications = ref(false);
 const showProfileMenu = ref(false);
 
 // Lógica simples de notificação
-const alertas = materialStore.materials.filter(m => m.quantidade <= m.minimo);
-const temNotificacao = alertas.length > 0;
+const alertas = computed(() => materialStore.materials.filter(m => m.quantidade <= m.minimo));
+const temNotificacao = computed(() => alertas.value.length > 0);
 
 const toggleNotifications = () => {
   showNotifications.value = !showNotifications.value;

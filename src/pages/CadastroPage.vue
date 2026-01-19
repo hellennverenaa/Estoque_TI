@@ -58,12 +58,12 @@ const abrirModalAuth = () => {
   nextTick(() => authInputRef.value?.focus());
 };
 
-const confirmarAuth = () => {
+const confirmarAuth = async () => {
   const usuario = authStore.validarCracha(authInput.value);
   if (usuario) {
     usuarioLogado.value = usuario.nome;
     showAuthModal.value = false;
-    processarSalvamento(); 
+    await processarSalvamento();
   } else {
     toast.error('Crachá não autorizado ou desconhecido');
     authInput.value = '';
@@ -71,20 +71,22 @@ const confirmarAuth = () => {
   }
 };
 
-const processarSalvamento = () => {
+const processarSalvamento = async () => {
   try {
     const isPatrimonio = !formData.value.codigoPrincipal.includes('-');
+    const valor = formData.value.valor ? Number(formData.value.valor) : undefined;
+    const minimo = formData.value.minimo ? Number(formData.value.minimo) : 0;
 
-    materialStore.addMaterial({
+    await materialStore.createMaterial({
       codigo: formData.value.codigoPrincipal,
       patrimonio: isPatrimonio ? formData.value.codigoPrincipal : undefined,
-      numeroSerie: formData.value.numeroSerie,
+      numeroSerie: formData.value.numeroSerie || undefined,
       nome: formData.value.nome,
       categoria: formData.value.categoria,
       quantidade: Number(formData.value.quantidade),
-      minimo: Number(formData.value.minimo),
-      valor: Number(formData.value.valor),
-      local: formData.value.local,
+      minimo,
+      valor,
+      local: formData.value.local || undefined,
       criadoPor: usuarioLogado.value 
     });
 
