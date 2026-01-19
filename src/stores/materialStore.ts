@@ -3,18 +3,29 @@ import { ref } from 'vue';
 import type { ProductListFilters } from '../services/productsApi';
 import { productsApi, type ApiProduct, type CreateProductPayload, type UpdateProductPayload } from '../services/productsApi';
 
+export interface CreateProductDTO {
+  name: string;
+  category: string;
+  codigo?: string;
+  serial_number?: string;
+  minimal_quantity?: number;
+  quantity?: number;
+  value?: number;
+  local_storage?: string;
+  created_by: number | string;
+}
+
 export interface Material {
   id: string;
-  codigo: string;
-  nome: string;
-  categoria: string;
-  quantidade: number;
-  minimo: number;
-  valor?: number | string;
-  patrimonio?: string;
-  numeroSerie?: string;
-  local?: string;
-  criadoPor?: string;
+  codigo?: string;
+  name: string;
+  category: string;
+  quantity: number;
+  minimal_quantity: number;
+  value?: number | string;
+  serial_number?: string;
+  local_storage?: string;
+  created_by: number | string;
   fornecedor?: string;
 }
 
@@ -30,15 +41,15 @@ export const useMaterialStore = defineStore('material', () => {
 
     return {
       id: p.id,
-      codigo,
-      nome: p.name,
-      categoria: p.category,
-      quantidade: p.quantity,
-      minimo: p.minimal_quantity,
-      valor: p.value ?? undefined,
-      numeroSerie: p.serial_number ?? undefined,
-      local: p.local_storage ?? undefined,
-      patrimonio: isPatrimonio ? codigo : undefined
+      name: p.name,
+      category: p.category,
+      quantity: p.quantity,
+      minimal_quantity: p.minimal_quantity,
+      value: p.value ?? undefined,
+      serial_number: p.serial_number ?? undefined,
+      local_storage: p.local_storage ?? undefined,
+      codigo: isPatrimonio ? codigo : undefined,
+      created_by: p.created_by
     };
   };
 
@@ -65,35 +76,36 @@ export const useMaterialStore = defineStore('material', () => {
     await fetchMaterials();
   };
 
-  type MaterialCreateInput = Omit<Material, 'id'>;
+  // type MaterialCreateInput = Omit<Material, 'id'>;
 
-  const createMaterial = async (material: MaterialCreateInput) => {
-    const payload: CreateProductPayload = {
-      name: material.nome,
-      category: material.categoria,
-      codigo: material.codigo,
-      serial_number: material.numeroSerie,
-      minimal_quantity: material.minimo,
-      quantity: material.quantidade,
-      value: material.valor,
-      local_storage: material.local
-    };
+  const createMaterial = async (material: CreateProductDTO) => {
+    try {
+      console.log("Prdouto a ser criado");
+      console.log(material);
+      
+      
+      const created = await productsApi.create(material);
 
-    const created = await productsApi.create(payload);
-    materials.value.push(fromApiProduct(created));
-    return created;
+      console.log('Sucesso, material criado');
+      console.log(created);
+      
+      
+      return created;
+    } catch (error) {
+      throw error;
+    }
   };
 
   const updateMaterial = async (id: string, updates: Partial<Material>) => {
     const payload: UpdateProductPayload = {
-      name: updates.nome,
-      category: updates.categoria,
+      name: updates.name,
+      category: updates.category,
       codigo: updates.codigo,
-      serial_number: updates.numeroSerie,
-      minimal_quantity: updates.minimo,
-      quantity: updates.quantidade,
-      value: updates.valor,
-      local_storage: updates.local
+      serial_number: updates.serial_number,
+      minimal_quantity: updates.minimal_quantity,
+      quantity: updates.quantity,
+      value: updates.value,
+      local_storage: updates.local_storage
     };
 
     const updated = await productsApi.update(id, payload);

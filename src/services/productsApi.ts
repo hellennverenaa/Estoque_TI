@@ -10,6 +10,7 @@ export type ApiProduct = {
   quantity: number;
   value?: number | null;
   local_storage?: string | null;
+  created_by: number
   created_at?: string;
   updated_at?: string;
 };
@@ -67,8 +68,9 @@ export type CreateProductPayload = {
   serial_number?: string;
   minimal_quantity?: number;
   quantity?: number;
-  value?: number;
+  value?: number | string;
   local_storage?: string;
+  created_by: number | string;
 };
 
 export type UpdateProductPayload = Partial<CreateProductPayload>;
