@@ -53,8 +53,8 @@ const dadosGraficoPizza = computed(() => {
 
   return lista
     .map((m) => ({
-      nome: m.nome,
-      valor: (m.quantidade || 0) * (parseFloat(m.valor as string) || 0),
+      nome: m.name,
+      valor: (m.quantity || 0) * (parseFloat(m.value as string) || 0),
     }))
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 5);
@@ -186,6 +186,7 @@ const getSlicePath = (index: number, data: any[]) => {
         </h3>
         <div class="relative" style="height: 300px">
           <svg viewBox="0 0 200 200" class="w-full h-full">
+
             <template v-if="dadosGraficoPizza.length > 0">
               <g v-for="(item, index) in dadosGraficoPizza" :key="index">
                 <path
@@ -193,12 +194,11 @@ const getSlicePath = (index: number, data: any[]) => {
                   :fill="['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'][index]"
                   class="transition-all duration-500 hover:opacity-80 cursor-pointer pie-slice"
                   :style="`animation-delay: ${index * 0.15}s; transform-origin: 100px 100px;`"
-                  @mouseenter="$event.target.style.transform = 'scale(1.05)'"
-                  @mouseleave="$event.target.style.transform = 'scale(1)'"
                 />
               </g>
               <circle cx="100" cy="100" r="45" fill="#1e293b" class="animate-pulse-subtle" />
             </template>
+            
             <text v-else x="100" y="100" text-anchor="middle" fill="#94a3b8" font-size="12">Sem dados</text>
           </svg>
         </div>

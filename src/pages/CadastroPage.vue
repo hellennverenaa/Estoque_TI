@@ -146,8 +146,6 @@ onMounted(() => {
 
 const allowedUsers = computed(() => authStore.usuarios || []);
 
-const usuarioLogado = ref<number>(0);
-
 const userRfid = ref("");
 const isUserAllowed = ref(false);
 
@@ -155,9 +153,10 @@ const checkUserPermission = () => {
   const user = allowedUsers.value.find((u) => u.rfid === userRfid.value.trim());
   if (user) {
     isUserAllowed.value = true;
-    toast.success(`Bem-vindo, ${user.username}!`);
+    toast.success(`Acesso autorizado!`);
   } else {
     isUserAllowed.value = false;
+    userRfid.value = ""
     toast.error("Acesso negado: Usuário não autorizado.");
   }
 };
