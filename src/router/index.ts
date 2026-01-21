@@ -8,7 +8,6 @@ import MovimentacaoPage from '../pages/MovimentacaoPage.vue';
 import AlertasPage from '../pages/AlertasPage.vue';
 import RelatoriosPage from '../pages/RelatoriosPage.vue';
 import ConfiguracoesPage from '../pages/ConfiguracoesPage.vue';
-import EdicaoPage from '../pages/EdicaoPage.vue';
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
@@ -19,7 +18,6 @@ const routes = [
   { path: '/alertas', name: 'alertas', component: AlertasPage },
   { path: '/relatorios', name: 'relatorios', component: RelatoriosPage },
   { path: '/configuracoes', name: 'configuracoes', component: ConfiguracoesPage },
-  { path: '/edicao', name: 'edicao', component: EdicaoPage },
 ];
 
 const router = createRouter({

@@ -73,7 +73,19 @@ export type CreateProductPayload = {
   created_by: number | string;
 };
 
-export type UpdateProductPayload = Partial<CreateProductPayload>;
+export type UpdateProductDTO = {
+  name?: string;
+  category?: string;
+  codigo?: string;
+  serial_number?: string;
+  minimal_quantity?: number;
+  quantity?: number;
+  value?: number | string;
+  local_storage?: string;
+  editReason?: string
+}
+
+export type UpdateProductPayload = UpdateProductDTO & { updated_by: number; }
 
 export const productsApi = {
   list: (filters?: ProductListFilters) => apiClient.get<ApiProductResponse>('/api/products', filters),
@@ -82,7 +94,13 @@ export const productsApi = {
 
   create: (payload: CreateProductPayload) => apiClient.post<ApiProduct>('/api/products', payload),
 
-  update: (id: string, payload: UpdateProductPayload) => apiClient.patch<ApiProduct>(`/api/products/${id}`, payload),
+  update: (id: string, payload: UpdateProductPayload, userRfid: number) =>
+    apiClient.patch<ApiProduct>(`/api/products/${id}`,
+      payload,
+      {
+        'x-rfid': userRfid.toString()
+      }
+    ),
 
   remove: (id: string) => apiClient.delete<{ message: string }>(`/api/products/${id}`),
 

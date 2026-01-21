@@ -1,5 +1,6 @@
 <template>
   <div class="flex flex-col gap-10 relative">
+    <!-- Auth Modal -->
     <div
       v-if="showEditAuthModal"
       class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
@@ -18,19 +19,21 @@
           </div>
 
           <div class="w-full relative mt-4">
-            <input
+            <v-text-field
               ref="authInputRef"
               v-model="authInput"
               @keyup.enter="confirmEditAuth"
               type="password"
-              class="w-full text-center border-2 border-red-100 rounded-xl py-3 px-4 focus:border-red-500 focus:ring-4 focus:ring-red-50 outline-none transition-all font-bold text-gray-700 tracking-widest placeholder:font-normal"
               placeholder="Bipe seu crachá..."
+              variant="outlined"
+              color="blue"
             />
           </div>
         </div>
       </div>
     </div>
 
+    <!-- Detalhes produtos -->
     <div
       v-if="showDetailsModal && selectedMaterial"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in"
@@ -39,7 +42,7 @@
         <div class="bg-blue-700 p-6 text-white flex justify-between">
           <div>
             <h2 class="text-2xl font-bold">{{ selectedMaterial.name }}</h2>
-            <p class="opacity-80 font-mono">{{ selectedMaterial.codigo || 'Sem Código' }}</p>
+            <p class="opacity-80 font-mono">{{ selectedMaterial.codigo || "Sem Código" }}</p>
           </div>
           <button @click="showDetailsModal = false"><X class="text-white" /></button>
         </div>
@@ -59,7 +62,9 @@
             </div>
             <div>
               <p class="text-sm text-gray-500">Estoque</p>
-              <p class="font-medium">{{ selectedMaterial.quantity }} - (Min: {{ selectedMaterial.minimal_quantity }})</p>
+              <p class="font-medium">
+                {{ selectedMaterial.quantity }} - (Min: {{ selectedMaterial.minimal_quantity }})
+              </p>
             </div>
             <div>
               <p class="text-sm text-gray-500">Local</p>
@@ -67,6 +72,7 @@
             </div>
           </div>
         </div>
+        
         <div class="p-4 bg-gray-50 flex justify-end gap-2 border-t">
           <Button variant="secondary" @click="showDetailsModal = false">Fechar</Button>
           <Button @click="handleEditClick(selectedMaterial)"> <Edit2 :size="16" class="mr-2" /> Editar </Button>
@@ -74,6 +80,7 @@
       </div>
     </div>
 
+    <!-- Titulo da pagina -->
     <div class="space-y-3">
       <h1 class="bg-gradient-to-r from-[#1E40AF] to-[#2563EB] bg-clip-text text-transparent text-2xl font-bold">
         Consultar Itens
@@ -81,6 +88,7 @@
       <p class="text-[#6B7280]">Visualize e gerencie todos os materiais cadastrados</p>
     </div>
 
+    <!-- Filtros -->
     <Card>
       <div class="flex items-center gap-3 mb-6">
         <div class="w-12 h-12 bg-[#EFF6FF] rounded-xl flex items-center justify-center">
@@ -92,7 +100,6 @@
         </div>
       </div>
 
-      <!-- Filtros -->
       <div class="space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input v-model="searchProductName" label="Buscar Nome" placeholder="Buscar por nome" class="w-full">
@@ -121,6 +128,7 @@
       </div>
     </Card>
 
+    <!-- Lista de Produtos Desktop -->
     <div class="hidden lg:block">
       <Card :no-padding="true">
         <table class="w-full">
@@ -167,6 +175,7 @@
       </Card>
     </div>
 
+    <!-- Lista Produtos Mobile -->
     <div class="lg:hidden flex flex-col gap-4">
       <Card v-for="item in filteredMaterials" :key="item.codigo">
         <div class="flex gap-4">
@@ -195,19 +204,29 @@
         </div>
       </Card>
     </div>
+
+    <!-- Modal Edição de Produto -->
+    <div v-if="materialToEdit && openEditDialog">
+      <EdicaoPage @update="emitUpdatedProduct" :product="materialToEdit" :dialog="openEditDialog" :authRfid="authInput"/>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, watch } from "vue";
-import { useRouter } from "vue-router"; // 1. Importação do Router
-import { Search, Edit2, Eye, Filter, X, CheckCircle, Lock } from "lucide-vue-next";
+import { useRouter } from "vue-router";
 import { toast } from "vue-sonner";
+import { Search, Edit2, Eye, Filter, X, CheckCircle, Lock } from "lucide-vue-next";
+
+// Components
 import Card from "../components/Card.vue";
 import Input from "../components/Input.vue";
 import Select from "../components/Select.vue";
 import Badge from "../components/Badge.vue";
 import Button from "../components/Button.vue";
+import EdicaoPage from "../components/EdicaoPage.vue";
+
+// Stores
 import { useMaterialStore } from "../stores/materialStore";
 import { useAuthStore } from "../stores/authStore";
 
@@ -248,7 +267,7 @@ watch(
   () => filters.value,
   async (newValue) => {
     console.log("Filtros atualizados:", newValue);
-    await materialStore.fetchMaterials(filters.value)
+    await materialStore.fetchMaterials(filters.value);
   },
   { deep: true },
 );
@@ -274,8 +293,9 @@ const showEditAuthModal = ref(false);
 const materialToEdit = ref<any>(null);
 const authInput = ref("");
 const authInputRef = ref<HTMLInputElement | null>(null);
+const isAuthenticated = ref(false);
 
-// --- AÇÕES ---
+// Ações
 const handleEditClick = (material: any) => {
   materialToEdit.value = material;
   showEditAuthModal.value = true;
@@ -286,44 +306,39 @@ const handleEditClick = (material: any) => {
   });
 };
 
+const openEditDialog = ref(false)
 const confirmEditAuth = () => {
-  const user = allowedUsers.value.find((u) => u.rfid === authInput.value.trim());
+  if (!materialToEdit.value) {
+    toast.error("Nenhum material selecionado para edição.");
+    console.warn("Nenhuma material selecionado para edição");
 
+    showEditAuthModal.value = false;
+    return;
+  }
+
+  const user = allowedUsers.value.find((u) => u.rfid === authInput.value.trim());
   if (!user) {
     toast.error("Crachá não reconhecido.");
     authInput.value = "";
     return;
   }
   toast.success(`Acesso liberado: ${user.username}`);
+  showEditAuthModal.value = false;
 
-  if (materialToEdit.value) {
-    // Salva o ID e navega usando a rota
-    localStorage.setItem("material_to_edit", materialToEdit.value.id);
-    showEditAuthModal.value = false;
+  isAuthenticated.value = true;
+  openEditDialog.value = true;
+};
 
-    // 3. NAVEGAÇÃO VIA ROTA
-    router.push("/edicao");
-  }
-}
+// Função capta alteração do dialog de edição para atualizar as variaveis locais de verificação
+const emitUpdatedProduct = (value: boolean) => {
+  openEditDialog.value = value;
+  isAuthenticated.value = false;
+};
 
 const handleView = (material: any) => {
   selectedMaterial.value = material;
   showDetailsModal.value = true;
 };
-
-// const handleDelete = (codigo: string) => {
-//   if (confirm('Tem certeza que deseja excluir este item?')) {
-//     const material = materialStore.materials.find(m => m.codigo === codigo);
-//     if (!material) {
-//       toast.error('Item não encontrado.');
-//       return;
-//     }
-
-//     materialStore.deleteMaterial(material.id)
-//       .then(() => toast.success('Item excluído.'))
-//       .catch((e: any) => toast.error(e?.message || 'Erro ao excluir item.'));
-//   }
-// };
 
 // --- COMPUTEDS ---
 const categorias = computed(() => {
@@ -355,11 +370,11 @@ const filteredMaterials = computed(() => {
 });
 
 // --- FUNÇÕES AUXILIARES ---
-const getStatus = (quantidade: number, minimo: number) => {
-  if (quantidade === 0) return "sem";
-  if (quantidade < minimo) return "baixo";
-  return "ok";
-};
+// const getStatus = (quantidade: number, minimo: number) => {
+//   if (quantidade === 0) return "sem";
+//   if (quantidade < minimo) return "baixo";
+//   return "ok";
+// };
 
 const getStatusBadge = (quantidade: number, minimo: number) => {
   if (quantidade === 0) return { variant: "error" as const, label: "Esgotado" };

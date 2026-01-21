@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { ProductListFilters } from '../services/productsApi';
-import { productsApi, type ApiProduct, type CreateProductPayload, type UpdateProductPayload } from '../services/productsApi';
+import { productsApi, type ApiProduct, type UpdateProductDTO, type UpdateProductPayload } from '../services/productsApi';
 
 export interface CreateProductDTO {
   name: string;
@@ -96,19 +96,16 @@ export const useMaterialStore = defineStore('material', () => {
     }
   };
 
-  const updateMaterial = async (id: string, updates: Partial<Material>) => {
+  const updateMaterial = async (id: string, updates: UpdateProductDTO, userRfid: number) => {
     const payload: UpdateProductPayload = {
-      name: updates.name,
-      category: updates.category,
-      codigo: updates.codigo,
-      serial_number: updates.serial_number,
-      minimal_quantity: updates.minimal_quantity,
-      quantity: updates.quantity,
-      value: updates.value,
-      local_storage: updates.local_storage
+      ...updates,
+      updated_by: userRfid
     };
 
-    const updated = await productsApi.update(id, payload);
+    console.log(payload);
+    
+
+    const updated = await productsApi.update(id, payload, userRfid);
     const index = materials.value.findIndex(m => m.id === id);
     if (index !== -1) {
       materials.value[index] = fromApiProduct(updated);
