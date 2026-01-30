@@ -103,7 +103,20 @@ const props = defineProps<{
   authRfid: string
 }>();
 
-const formData = ref<UpdateProductDTO & { editReason: string, id: string }>({
+type EditFormData = {
+  id: string;
+  codigo?: string;
+  name: string;
+  category: string;
+  quantity: string | number;
+  minimal_quantity: string | number;
+  value?: string | number;
+  serial_number?: string;
+  local_storage?: string;
+  editReason: string;
+};
+
+const formData = ref<EditFormData>({
   id: "",
   codigo: "",
   name: "",
@@ -149,16 +162,70 @@ watch(dialog, (newVal) => {
 
 const handleSave = async () => {
   try {
-    if ((Number(formData.value.quantity) !== Number(props.product.quantity)) && !formData.value.editReason) {
-      console.log("Voce deve apresentar uma justificativa para alteração do estoque deste produto.")
-      alert("Voce deve apresentar uma justificativa para alteração do estoque deste produto.")
-      return
+    const userRfid = Number(props.authRfid);
+    if (!Number.isFinite(userRfid)) {
+      toast.error("RFID inválido. Faça a autenticação novamente.");
+      return;
     }
 
-    // TODO: Continuar daqui. Ja esta pronto o cadastro, listagem e dashboard
-    // Constroi o payload de acordo com as alterações do usuário. Só envia dados alterados
+    const toNumberOrUndefined = (raw: unknown) => {
+      if (raw === undefined || raw === null || raw === "") return undefined;
+      const n = typeof raw === "number" ? raw : Number(String(raw).replace(",", "."));
+      return Number.isFinite(n) ? n : undefined;
+    };
 
-    await materialStore.updateMaterial(props.product.id, formData.value, Number(props.authRfid))
+    const payload: UpdateProductDTO = {};
+
+    const nextName = String(formData.value.name ?? "");
+    if (nextName !== props.product.name) payload.name = nextName;
+
+    const nextCategory = String(formData.value.category ?? "");
+    if (nextCategory !== props.product.category) payload.category = nextCategory;
+
+    const nextCodigo = (formData.value.codigo ?? "") || "";
+    const prevCodigo = (props.product.codigo ?? "") || "";
+    if (nextCodigo !== prevCodigo) payload.codigo = nextCodigo;
+
+    const nextSerial = (formData.value.serial_number ?? "") || "";
+    const prevSerial = (props.product.serial_number ?? "") || "";
+    if (nextSerial !== prevSerial) payload.serial_number = nextSerial;
+
+    const nextLocal = (formData.value.local_storage ?? "") || "";
+    const prevLocal = (props.product.local_storage ?? "") || "";
+    if (nextLocal !== prevLocal) payload.local_storage = nextLocal;
+
+    const nextQty = toNumberOrUndefined(formData.value.quantity);
+    const prevQty = Number(props.product.quantity);
+    if (nextQty !== undefined && nextQty !== prevQty) payload.quantity = nextQty;
+
+    const nextMin = toNumberOrUndefined(formData.value.minimal_quantity);
+    const prevMin = Number(props.product.minimal_quantity);
+    if (nextMin !== undefined && nextMin !== prevMin) payload.minimal_quantity = nextMin;
+
+    const nextValue = toNumberOrUndefined(formData.value.value);
+    const prevValue = props.product.value === undefined || props.product.value === null || props.product.value === "" ? undefined : Number(props.product.value);
+    if (nextValue !== prevValue) payload.value = nextValue;
+
+    const quantityChanged = payload.quantity !== undefined;
+    if (quantityChanged) {
+      const reason = String(formData.value.editReason ?? "").trim();
+      if (!reason) {
+        toast.error("Você deve informar uma justificativa para alterar a quantidade.");
+        return;
+      }
+      payload.editReason = reason;
+    }
+
+    const hasUpdates = Object.keys(payload).length > 0;
+    if (!hasUpdates) {
+      toast.message("Nenhuma alteração para salvar.");
+      dialog.value = false;
+      return;
+    }
+
+    await materialStore.updateMaterial(props.product.id, payload, userRfid);
+    toast.success("Material atualizado com sucesso.");
+    dialog.value = false;
   } catch (e: any) {
     toast.error(e.message);
   }

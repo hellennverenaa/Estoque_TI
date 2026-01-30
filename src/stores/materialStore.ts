@@ -97,9 +97,26 @@ export const useMaterialStore = defineStore('material', () => {
   };
 
   const updateMaterial = async (id: string, updates: UpdateProductDTO, userRfid: number) => {
+    const sanitized: UpdateProductDTO = {
+      name: updates.name,
+      category: updates.category,
+      codigo: updates.codigo,
+      serial_number: updates.serial_number,
+      minimal_quantity: updates.minimal_quantity,
+      quantity: updates.quantity,
+      value: updates.value,
+      local_storage: updates.local_storage,
+      editReason: updates.editReason,
+    };
+
+    // Remove undefined para evitar enviar campos vazios sem querer
+    const cleaned = Object.fromEntries(
+      Object.entries(sanitized).filter(([_, v]) => v !== undefined)
+    ) as UpdateProductDTO;
+
     const payload: UpdateProductPayload = {
-      ...updates,
-      updated_by: userRfid
+      ...cleaned,
+      updated_by: userRfid,
     };
 
     console.log(payload);
