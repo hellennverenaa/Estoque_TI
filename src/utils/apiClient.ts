@@ -89,8 +89,8 @@ export const createApiClient = (options: ApiClientOptions = {}) => {
     get: <T>(path: string, params?: Record<string, unknown>, signal?: AbortSignal) =>
       request<T>('GET', path, { params, signal }),
 
-    post: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
-      request<T>('POST', path, { body, signal }),
+    post: <T>(path: string, body?: unknown, headers?: Record<string, string>, signal?: AbortSignal) =>
+      request<T>('POST', path, { body, headers, signal }),
 
     patch: <T>(path: string, body?: unknown, headers?: Record<string, string>, signal?: AbortSignal) =>
       request<T>('PATCH', path, { body, headers, signal }),

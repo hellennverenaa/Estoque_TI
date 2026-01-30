@@ -78,17 +78,9 @@ export const useMaterialStore = defineStore('material', () => {
 
   // type MaterialCreateInput = Omit<Material, 'id'>;
 
-  const createMaterial = async (material: CreateProductDTO) => {
+  const createMaterial = async (material: CreateProductDTO, userRfid: number | string) => {
     try {
-      console.log("Prdouto a ser criado");
-      console.log(material);
-      
-      
-      const created = await productsApi.create(material);
-
-      console.log('Sucesso, material criado');
-      console.log(created);
-      
+      const created = await productsApi.create(material, userRfid);
       
       return created;
     } catch (error) {

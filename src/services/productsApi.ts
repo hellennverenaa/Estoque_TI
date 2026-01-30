@@ -92,7 +92,12 @@ export const productsApi = {
 
   getById: (id: string) => apiClient.get<ApiProduct>(`/api/products/${id}`),
 
-  create: (payload: CreateProductPayload) => apiClient.post<ApiProduct>('/api/products', payload),
+  create: (payload: CreateProductPayload, userRfid: number | string) => apiClient.post<ApiProduct>('/api/products', 
+    payload,
+    {
+      'x-rfid': userRfid.toString()
+    }
+  ),
 
   update: (id: string, payload: UpdateProductPayload, userRfid: number) =>
     apiClient.patch<ApiProduct>(`/api/products/${id}`,

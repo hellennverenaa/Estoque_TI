@@ -42,9 +42,9 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
   const fromApi = (m: ApiMovimentation): Movimentacao => {
     const material = materialStore.getById(m.product_id);
     const materialCodigo = material?.codigo || '';
-    const materialNome = material?.nome || m.product?.name || '';
-    const categoria = material?.categoria || m.product?.category;
-    const valorUnit = material?.valor || 0;
+    const materialNome = material?.name || m.product?.name || '';
+    const categoria = material?.category || m.product?.category;
+    const valorUnit = material?.value || 0;
 
     return {
       id: m.id,
@@ -56,7 +56,7 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
       responsavel: String(m.movimented_by),
       observacoes: m.appointment || '',
       data: toDateOnly(m.created_at),
-      valor: valorUnit ? valorUnit * m.quantity : undefined,
+      valor: valorUnit ? Number(valorUnit) * m.quantity : undefined,
       categoria
     };
   };

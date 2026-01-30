@@ -187,8 +187,22 @@ const createProduct = async () => {
       created_by: Number(userRfid.value),
     }
     
-    await materialStore.createMaterial(data);
+    await materialStore.createMaterial(data, userRfid.value);
+    toast.success("Produto criado com sucesso!");
+    // limpar o formulário
+    formData.value = {
+      name: "",
+      category: "",
+      codigo: "",
+      serial_number: "",
+      quantity: "",
+      minimal_quantity: "",
+      local_storage: "",
+      value: "",
+      created_by: userRfid.value,
+    };
   } catch (error) {
+    toast.error("Erro ao criar produto!");
     console.log("Erro ao criar produto: ", error);
     // TODO: Criar feedback de erro
   }
