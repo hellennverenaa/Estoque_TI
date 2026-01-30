@@ -59,11 +59,25 @@ export const useAuthStore = defineStore('auth', () => {
     await fetchAllowedUsers();
   }
 
+  const normalizar = (value: unknown) => String(value ?? '').trim();
+
+  const validarCracha = (cracha: string | number): Usuario | null => {
+    const codigo = normalizar(cracha);
+    if (!codigo) return null;
+    const list = usuarios.value ?? [];
+
+    return (
+      list.find(u => normalizar(u.rfid) === codigo) ??
+      list.find(u => normalizar(u.matricula) === codigo) ??
+      null
+    );
+  };
+
   return {
     ensureLoaded,
     fetchAllowedUsers,
     usuarios,
-    // validarCracha,
+    validarCracha,
     // adicionarUsuario,
     // removerUsuario
   };

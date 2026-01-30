@@ -5,12 +5,13 @@ import { useMaterialStore } from './materialStore';
 
 export interface Movimentacao {
   id: string;
-  tipo: 'entrada' | 'saida';
+  tipo: 'entrada' | 'saida' | 'transferencia' | 'ajuste';
   materialId: string;
   materialCodigo: string;
   materialNome: string;
   quantidade: number;
-  responsavel: string;
+  responsavelId: number;
+  responsavel?: string;
   observacoes: string;
   data: string;
   valor?: number;
@@ -26,11 +27,15 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
 
   const mapApiTypeToUi = (type: ApiMovimentationType): Movimentacao['tipo'] => {
     if (type === 'outbound') return 'saida';
+    if (type === 'transfer') return 'transferencia';
+    if (type === 'adjustment') return 'ajuste';
     return 'entrada';
   };
 
   const mapUiTypeToApi = (type: Movimentacao['tipo']): ApiMovimentationType => {
     if (type === 'saida') return 'outbound';
+    if (type === 'transferencia') return 'transfer';
+    if (type === 'ajuste') return 'adjustment';
     return 'inbound';
   };
 
@@ -53,6 +58,7 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
       materialCodigo,
       materialNome,
       quantidade: m.quantity,
+      responsavelId: m.movimented_by,
       responsavel: String(m.movimented_by),
       observacoes: m.appointment || '',
       data: toDateOnly(m.created_at),
@@ -67,8 +73,8 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
 
     try {
       await materialStore.ensureLoaded();
-      const list = await movimentationsApi.list();
-      movimentacoes.value = list.map(fromApi);
+      const response = await movimentationsApi.list();
+      movimentacoes.value = response.data.map(fromApi);
       initialized.value = true;
     } catch (e: any) {
       error.value = e?.message || 'Erro ao buscar movimentações';
@@ -95,16 +101,16 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
   const createMovimentacao = async (input: CreateMovimentacaoInput) => {
     const payload: CreateMovimentationPayload = {
       type: mapUiTypeToApi(input.tipo),
-      productId: input.productId,
-      responsibleUserId: input.responsibleUserId,
+      product_id: input.productId,
+      movimented_by: input.responsibleUserId,
       quantity: input.quantity,
-      newLocation: input.newLocation,
+      new_location: input.newLocation,
       notes: input.notes
     };
 
     const created = await movimentationsApi.create(payload);
-    movimentacoes.value.push(fromApi(created));
-    return created;
+    movimentacoes.value.push(fromApi(created.data));
+    return created.data;
   };
 
   return {

@@ -2,6 +2,13 @@ import { apiClient } from '../utils/apiClient';
 
 export type ApiMovimentationType = 'inbound' | 'outbound' | 'transfer' | 'adjustment';
 
+export type ApiResponse<T> = {
+  success: boolean;
+  message: string;
+  data: T;
+  [key: string]: unknown;
+};
+
 export type ApiMovimentation = {
   id: string;
   type: ApiMovimentationType;
@@ -48,23 +55,24 @@ export type MovimentationsDashboardResponse = {
 
 export type CreateMovimentationPayload = {
   type: ApiMovimentationType;
-  productId: string;
-  responsibleUserId: number;
+  product_id: string;
+  movimented_by: number;
   quantity: number;
-  newLocation?: string;
+  new_location?: string;
   notes?: string;
 };
 
 export const movimentationsApi = {
-  list: () => apiClient.get<ApiMovimentation[]>('/api/movimentations'),
+  list: () => apiClient.get<ApiResponse<ApiMovimentation[]>>('/api/movimentations'),
 
-  getById: (id: string) => apiClient.get<ApiMovimentation>(`/api/movimentations/${id}`),
+  getById: (id: string) => apiClient.get<ApiResponse<ApiMovimentation>>(`/api/movimentations/${id}`),
 
   listByProduct: (productId: string) =>
-    apiClient.get<ApiMovimentation[]>(`/api/movimentations/product/${productId}`),
+    apiClient.get<ApiResponse<ApiMovimentation[]>>(`/api/movimentations/product/${productId}`),
 
   dashboard: (filters?: MovimentationsDashboardFilters) =>
-    apiClient.get<MovimentationsDashboardResponse>('/api/movimentations/dashboard', filters),
+    apiClient.get<MovimentationsDashboardResponse>('/api/movimentations/stats/dashboard', filters),
 
-  create: (payload: CreateMovimentationPayload) => apiClient.post<ApiMovimentation>('/api/movimentations', payload)
+  create: (payload: CreateMovimentationPayload) =>
+    apiClient.post<ApiResponse<ApiMovimentation>>('/api/movimentations', payload)
 };
