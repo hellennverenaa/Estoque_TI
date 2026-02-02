@@ -1,5 +1,6 @@
 services:
-  vue-prod:
+  estoque_ti:
+    container_name: estoque_ti
     build:
       context: .
       dockerfile: Dockerfile
