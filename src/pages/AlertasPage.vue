@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { AlertTriangle, Package, Send } from 'lucide-vue-next'; // Ícones novos importados
 import Card from '../components/Card.vue';
 import Badge from '../components/Badge.vue';
@@ -11,6 +11,10 @@ const emit = defineEmits<{
 }>();
 
 const materialStore = useMaterialStore();
+
+onMounted(() => {
+  materialStore.ensureLoaded().catch(() => undefined);
+});
 
 const materiaisAbaixoDoMinimo = computed(() =>
   materialStore.materials.filter(m => m.quantidade < m.minimo)

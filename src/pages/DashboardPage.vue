@@ -1,61 +1,60 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { 
-  LayoutDashboard, 
-  Package, 
-  AlertTriangle, 
-  ArrowRightLeft, 
-  TrendingUp,
-  TrendingDown 
-} from 'lucide-vue-next';
-import Card from '../components/Card.vue';
-import { useMaterialStore } from '../stores/materialStore';
-import { useMovimentacaoStore } from '../stores/movimentacaoStore';
+import { computed, onMounted } from "vue";
+import { LayoutDashboard, Package, AlertTriangle, ArrowRightLeft, TrendingUp, TrendingDown } from "lucide-vue-next";
+import Card from "../components/Card.vue";
+import { useMaterialStore } from "../stores/materialStore";
+import { useMovimentacaoStore } from "../stores/movimentacaoStore";
+import { useDashboardStore } from "../stores/dashboardStore";
 
 const materialStore = useMaterialStore();
 const movimentacaoStore = useMovimentacaoStore();
+const dashboardStore = useDashboardStore();
+
+onMounted(() => {
+  materialStore.ensureLoaded().catch(() => undefined);
+  movimentacaoStore.ensureLoaded().catch(() => undefined);
+  dashboardStore.ensureLoaded().catch(() => undefined);
+});
 
 // --- CORREÇÃO DE DATA ---
 const formatarData = (dataString: string) => {
-  if (!dataString) return '-';
-  const [ano, mes, dia] = dataString.split('-');
-  return `${dia}/${mes}/${ano}`;
+  if (!dataString) return "-";
+
+  const formatedDate = new Date(dataString).toLocaleDateString('pt-BR')
+  return formatedDate;
 };
 
 // Total de Materiais Cadastrados
-const totalMateriais = computed(() => (materialStore.materials || []).length);
+const totalMateriais = computed(() => dashboardStore?.productDashData?.data?.totalMaterials);
 
 // Valor Total em Estoque
-const valorTotalEstoque = computed(() => {
-  const lista = materialStore.materials || [];
-  return lista.reduce((acc, m) => acc + ((m.quantidade || 0) * (m.valor || 0)), 0);
-});
+const valorTotalEstoque = computed(() => dashboardStore?.productDashData?.data?.totalStockValue);
 
 // Itens com Estoque Baixo
-const itensBaixoEstoque = computed(() => {
-  const lista = materialStore.materials || [];
-  return lista.filter(m => m.quantidade < m.minimo);
-});
+const itensBaixoEstoque = computed(
+  () =>
+    dashboardStore?.productDashData?.data?.outOfStockProducts ||
+    0 + dashboardStore?.productDashData?.data?.lowStockProducts ||
+    0,
+);
+
+const totalMovimentacoes = computed(() => dashboardStore?.movimentationDashData?.data?.totalMovimentations);
 
 // Últimas Movimentações (Pega as 5 últimas)
-const ultimasMovimentacoes = computed(() => {
-  const lista = movimentacaoStore.movimentacoes || [];
-  return [...lista]
-    .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
-    .slice(0, 5);
-});
+const ultimasMovimentacoes = computed(() => dashboardStore?.movimentationDashData?.data?.recentMovimentations);
 
 const formatarMoeda = (valor: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
 };
 
 // Dados para gráfico de pizza - Top 5 materiais por valor
-const dadosGraficoPizza = computed(() => {
+const dadosGraficoPizza = computed(() => { 
   const lista = materialStore.materials || [];
+
   return lista
-    .map(m => ({
-      nome: m.nome,
-      valor: (m.quantidade || 0) * (m.valor || 0)
+    .map((m) => ({
+      nome: m.name,
+      valor: (m.quantity || 0) * (parseFloat(m.value as string) || 0),
     }))
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 5);
@@ -63,39 +62,39 @@ const dadosGraficoPizza = computed(() => {
 
 // Dados para gráfico de barras - Movimentações
 const dadosMovimentacoes = computed(() => {
-  const lista = movimentacaoStore.movimentacoes || [];
-  const entradas = lista.filter(m => m.tipo === 'entrada').length;
-  const saidas = lista.filter(m => m.tipo === 'saida').length;
+  const entradas = dashboardStore?.dashData?.movimentation?.movimentationsByType?.inbound;
+  const saidas = dashboardStore?.dashData?.movimentation?.movimentationsByType?.outbound
+
   return { entradas, saidas };
 });
 
 // Função para gerar o path do gráfico de pizza
 const getSlicePath = (index: number, data: any[]) => {
   const total = data.reduce((acc, item) => acc + item.valor, 0);
-  if (total === 0) return '';
-  
+  if (total === 0) return "";
+
   let startAngle = 0;
   for (let i = 0; i < index; i++) {
     startAngle += (data[i].valor / total) * 360;
   }
-  
+
   const angle = (data[index].valor / total) * 360;
   const endAngle = startAngle + angle;
-  
+
   const radius = 80;
   const centerX = 100;
   const centerY = 100;
-  
-  const startRad = (startAngle - 90) * Math.PI / 180;
-  const endRad = (endAngle - 90) * Math.PI / 180;
-  
+
+  const startRad = ((startAngle - 90) * Math.PI) / 180;
+  const endRad = ((endAngle - 90) * Math.PI) / 180;
+
   const x1 = centerX + radius * Math.cos(startRad);
   const y1 = centerY + radius * Math.sin(startRad);
   const x2 = centerX + radius * Math.cos(endRad);
   const y2 = centerY + radius * Math.sin(endRad);
-  
+
   const largeArc = angle > 180 ? 1 : 0;
-  
+
   return `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`;
 };
 </script>
@@ -103,14 +102,19 @@ const getSlicePath = (index: number, data: any[]) => {
 <template>
   <div class="space-y-6 animate-fade-in">
     <!-- Header Profissional -->
-    <div class="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 shadow-lg border-l-4 border-blue-500 animate-slide-down hover:shadow-2xl transition-all duration-300">
+    <div
+      class="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 shadow-lg border-l-4 border-blue-500 animate-slide-down hover:shadow-2xl transition-all duration-300"
+    >
       <h1 class="text-3xl font-bold text-white animate-title">Dashboard</h1>
       <p class="text-slate-300 mt-1 animate-subtitle">Visão geral do estoque e movimentações</p>
     </div>
 
     <!-- Cards de Métricas -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <Card class="bg-slate-800 border-slate-700 hover:shadow-xl hover:-translate-y-2 transition-all duration-500 animate-card" style="animation-delay: 0.1s">
+      <Card
+        class="bg-slate-800 border-slate-700 hover:shadow-xl hover:-translate-y-2 transition-all duration-500 animate-card"
+        style="animation-delay: 0.1s"
+      >
         <div class="flex items-center justify-between">
           <div>
             <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total de Materiais</p>
@@ -122,7 +126,10 @@ const getSlicePath = (index: number, data: any[]) => {
         </div>
       </Card>
 
-      <Card class="bg-slate-800 border-slate-700 hover:shadow-xl hover:-translate-y-2 transition-all duration-500 animate-card" style="animation-delay: 0.2s">
+      <Card
+        class="bg-slate-800 border-slate-700 hover:shadow-xl hover:-translate-y-2 transition-all duration-500 animate-card"
+        style="animation-delay: 0.2s"
+      >
         <div class="flex items-center justify-between">
           <div>
             <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Valor em Estoque</p>
@@ -134,11 +141,16 @@ const getSlicePath = (index: number, data: any[]) => {
         </div>
       </Card>
 
-      <Card class="bg-slate-800 border-slate-700 hover:shadow-xl hover:-translate-y-2 transition-all duration-500 animate-card" style="animation-delay: 0.3s">
+      <Card
+        class="bg-slate-800 border-slate-700 hover:shadow-xl hover:-translate-y-2 transition-all duration-500 animate-card"
+        style="animation-delay: 0.3s"
+      >
         <div class="flex items-center justify-between">
           <div>
             <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Estoque Crítico</p>
-            <h3 class="text-3xl font-bold text-orange-400 mt-2 animate-number animate-pulse-slow">{{ itensBaixoEstoque.length }}</h3>
+            <h3 class="text-3xl font-bold text-orange-400 mt-2 animate-number animate-pulse-slow">
+              {{ itensBaixoEstoque }}
+            </h3>
           </div>
           <div class="p-3 bg-orange-600 rounded-lg icon-float">
             <AlertTriangle class="text-white" :size="28" />
@@ -146,12 +158,15 @@ const getSlicePath = (index: number, data: any[]) => {
         </div>
       </Card>
 
-      <Card class="bg-slate-800 border-slate-700 hover:shadow-xl hover:-translate-y-2 transition-all duration-500 animate-card" style="animation-delay: 0.4s">
+      <Card
+        class="bg-slate-800 border-slate-700 hover:shadow-xl hover:-translate-y-2 transition-all duration-500 animate-card"
+        style="animation-delay: 0.4s"
+      >
         <div class="flex items-center justify-between">
           <div>
             <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Movimentações</p>
             <h3 class="text-3xl font-bold text-white mt-2 animate-number">
-              {{ (movimentacaoStore.movimentacoes || []).length }}
+              {{ totalMovimentacoes }}
             </h3>
           </div>
           <div class="p-3 bg-indigo-600 rounded-lg icon-float">
@@ -169,8 +184,9 @@ const getSlicePath = (index: number, data: any[]) => {
           <div class="w-1 h-6 bg-blue-500 rounded animate-pulse"></div>
           Top 5 Materiais por Valor
         </h3>
-        <div class="relative" style="height: 300px;">
+        <div class="relative" style="height: 300px">
           <svg viewBox="0 0 200 200" class="w-full h-full">
+
             <template v-if="dadosGraficoPizza.length > 0">
               <g v-for="(item, index) in dadosGraficoPizza" :key="index">
                 <path
@@ -178,25 +194,26 @@ const getSlicePath = (index: number, data: any[]) => {
                   :fill="['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'][index]"
                   class="transition-all duration-500 hover:opacity-80 cursor-pointer pie-slice"
                   :style="`animation-delay: ${index * 0.15}s; transform-origin: 100px 100px;`"
-                  @mouseenter="$event.target.style.transform = 'scale(1.05)'"
-                  @mouseleave="$event.target.style.transform = 'scale(1)'"
                 />
               </g>
               <circle cx="100" cy="100" r="45" fill="#1e293b" class="animate-pulse-subtle" />
             </template>
-            <text v-else x="100" y="100" text-anchor="middle" fill="#94a3b8" font-size="12">
-              Sem dados
-            </text>
+            
+            <text v-else x="100" y="100" text-anchor="middle" fill="#94a3b8" font-size="12">Sem dados</text>
           </svg>
         </div>
         <div class="mt-4 space-y-2">
-          <div v-for="(item, index) in dadosGraficoPizza" :key="index" 
-               class="flex items-center justify-between text-sm animate-slide-right hover:bg-slate-700 p-2 rounded transition-all duration-200"
-               :style="`animation-delay: ${0.5 + index * 0.1}s`">
+          <div
+            v-for="(item, index) in dadosGraficoPizza"
+            :key="index"
+            class="flex items-center justify-between text-sm animate-slide-right hover:bg-slate-700 p-2 rounded transition-all duration-200"
+            :style="`animation-delay: ${0.5 + index * 0.1}s`"
+          >
             <div class="flex items-center gap-2">
-              <div class="w-3 h-3 rounded-full animate-pulse-slow" 
-                   :style="{backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'][index]}">
-              </div>
+              <div
+                class="w-3 h-3 rounded-full animate-pulse-slow"
+                :style="{ backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'][index] }"
+              ></div>
               <span class="text-slate-300">{{ item.nome }}</span>
             </div>
             <span class="text-white font-semibold">{{ formatarMoeda(item.valor) }}</span>
@@ -217,11 +234,20 @@ const getSlicePath = (index: number, data: any[]) => {
               <span class="text-emerald-400 font-bold text-xl animate-number">{{ dadosMovimentacoes.entradas }}</span>
             </div>
             <div class="w-full bg-slate-700 rounded-full h-8 overflow-hidden">
-              <div 
+              <div
                 class="bg-gradient-to-r from-emerald-600 to-emerald-500 h-full rounded-full transition-all duration-1000 flex items-center justify-end pr-3 bar-fill"
-                :style="{width: dadosMovimentacoes.entradas > 0 ? `${(dadosMovimentacoes.entradas / ((dadosMovimentacoes.entradas + dadosMovimentacoes.saidas) || 1)) * 100}%` : '0%'}"
+                :style="{
+                  width:
+                    dadosMovimentacoes.entradas > 0
+                      ? `${(dadosMovimentacoes.entradas / (dadosMovimentacoes.entradas + dadosMovimentacoes.saidas || 1)) * 100}%`
+                      : '0%',
+                }"
               >
-                <TrendingUp :size="18" class="text-white animate-bounce-subtle" v-if="dadosMovimentacoes.entradas > 0" />
+                <TrendingUp
+                  :size="18"
+                  class="text-white animate-bounce-subtle"
+                  v-if="dadosMovimentacoes.entradas > 0"
+                />
               </div>
             </div>
           </div>
@@ -232,11 +258,20 @@ const getSlicePath = (index: number, data: any[]) => {
               <span class="text-orange-400 font-bold text-xl animate-number">{{ dadosMovimentacoes.saidas }}</span>
             </div>
             <div class="w-full bg-slate-700 rounded-full h-8 overflow-hidden">
-              <div 
+              <div
                 class="bg-gradient-to-r from-orange-600 to-orange-500 h-full rounded-full transition-all duration-1000 flex items-center justify-end pr-3 bar-fill"
-                :style="{width: dadosMovimentacoes.saidas > 0 ? `${(dadosMovimentacoes.saidas / ((dadosMovimentacoes.entradas + dadosMovimentacoes.saidas) || 1)) * 100}%` : '0%'}"
+                :style="{
+                  width:
+                    dadosMovimentacoes.saidas > 0
+                      ? `${(dadosMovimentacoes.saidas / (dadosMovimentacoes.entradas + dadosMovimentacoes.saidas || 1)) * 100}%`
+                      : '0%',
+                }"
               >
-                <TrendingDown :size="18" class="text-white animate-bounce-subtle" v-if="dadosMovimentacoes.saidas > 0" />
+                <TrendingDown
+                  :size="18"
+                  class="text-white animate-bounce-subtle"
+                  v-if="dadosMovimentacoes.saidas > 0"
+                />
               </div>
             </div>
           </div>
@@ -245,7 +280,7 @@ const getSlicePath = (index: number, data: any[]) => {
             <div class="flex items-center justify-between">
               <span class="text-slate-400">Total de Movimentações</span>
               <span class="text-white font-bold text-2xl animate-number">
-                {{ dadosMovimentacoes.entradas + dadosMovimentacoes.saidas }}
+                {{ totalMovimentacoes }}
               </span>
             </div>
           </div>
@@ -263,14 +298,18 @@ const getSlicePath = (index: number, data: any[]) => {
           </div>
           <h3 class="font-bold text-white text-lg">Alertas de Reposição</h3>
         </div>
-        <div v-if="itensBaixoEstoque.length === 0" class="text-center py-12 text-slate-500 animate-fade-in">
-           <p class="font-medium">✓ Sistema operando normalmente</p>
-           <p class="text-sm mt-1">Nenhum item crítico detectado</p>
+        <div v-if="itensBaixoEstoque === 0" class="text-center py-12 text-slate-500 animate-fade-in">
+          <p class="font-medium">✓ Sistema operando normalmente</p>
+          <p class="text-sm mt-1">Nenhum item crítico detectado</p>
         </div>
-        <div v-else class="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
-          <div v-for="(item, index) in itensBaixoEstoque.slice(0, 5)" :key="item.codigo" 
-               class="flex items-center justify-between p-4 bg-slate-700 rounded-lg border-l-4 border-orange-500 hover:bg-slate-600 hover:scale-[1.02] transition-all duration-200 animate-slide-right"
-               :style="`animation-delay: ${index * 0.1}s`">
+
+        <!-- <div v-else class="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
+          <div
+            v-for="(item, index) in itensBaixoEstoque.slice(0, 5)"
+            :key="item.codigo"
+            class="flex items-center justify-between p-4 bg-slate-700 rounded-lg border-l-4 border-orange-500 hover:bg-slate-600 hover:scale-[1.02] transition-all duration-200 animate-slide-right"
+            :style="`animation-delay: ${index * 0.1}s`"
+          >
             <div>
               <p class="font-semibold text-white">{{ item.nome }}</p>
               <p class="text-xs text-slate-400 mt-1">Código: {{ item.codigo }}</p>
@@ -280,7 +319,7 @@ const getSlicePath = (index: number, data: any[]) => {
               <p class="text-xs text-slate-400">Mín: {{ item.minimo }}</p>
             </div>
           </div>
-        </div>
+        </div> -->
       </Card>
 
       <!-- Últimas Movimentações -->
@@ -292,28 +331,37 @@ const getSlicePath = (index: number, data: any[]) => {
           <h3 class="font-bold text-white text-lg">Últimas Movimentações</h3>
         </div>
 
-        <div v-if="ultimasMovimentacoes.length === 0" class="text-center py-12 text-slate-500 animate-fade-in">
+        <div v-if="ultimasMovimentacoes === 0" class="text-center py-12 text-slate-500 animate-fade-in">
           <p class="font-medium">Nenhum registro encontrado</p>
         </div>
 
         <div v-else class="space-y-3">
-          <div v-for="(mov, index) in ultimasMovimentacoes" :key="mov.id" 
-               class="flex items-center justify-between p-3 bg-slate-700 rounded-lg hover:bg-slate-600 hover:scale-[1.02] transition-all duration-200 border-l-2 animate-slide-left"
-               :class="mov.tipo === 'entrada' ? 'border-emerald-500' : 'border-orange-500'"
-               :style="`animation-delay: ${index * 0.1}s`">
+          <div
+            v-for="(mov, index) in ultimasMovimentacoes"
+            :key="mov.id"
+            class="flex items-center justify-between p-3 bg-slate-700 rounded-lg hover:bg-slate-600 hover:scale-[1.02] transition-all duration-200 border-l-2 animate-slide-left"
+            :class="mov.type === 'inbound' ? 'border-emerald-500' : 'border-orange-500'"
+            :style="`animation-delay: ${(index as any) * 0.1}s`"
+          >
             <div class="flex items-center gap-3">
-              <div :class="mov.tipo === 'entrada' ? 'bg-emerald-600' : 'bg-orange-600'"
-                   class="p-2 rounded-lg icon-bounce">
-                <component :is="mov.tipo === 'entrada' ? TrendingUp : TrendingDown" :size="18" class="text-white" />
+              <div
+                :class="mov.type === 'inbound' ? 'bg-emerald-600' : 'bg-orange-600'"
+                class="p-2 rounded-lg icon-bounce"
+              >
+                <component :is="mov.type === 'inbound' ? TrendingUp : TrendingDown" :size="18" class="text-white" />
               </div>
               <div>
-                <p class="font-semibold text-white">{{ mov.materialNome }}</p>
-                <p class="text-xs text-slate-400">{{ formatarData(mov.data) }}</p>
+                <p class="font-semibold text-white">{{ mov.product.name }}</p>
+                <p class="text-xs text-slate-400">{{ formatarData(mov.created_at) }}</p>
               </div>
             </div>
-            <span :class="mov.tipo === 'entrada' ? 'text-emerald-400 bg-emerald-900/30' : 'text-orange-400 bg-orange-900/30'" 
-                  class="font-bold text-lg px-3 py-1 rounded animate-fade-in">
-              {{ mov.tipo === 'entrada' ? '+' : '-' }}{{ mov.quantidade }}
+            <span
+              :class="
+                mov.type === 'inbound' ? 'text-emerald-400 bg-emerald-900/30' : 'text-orange-400 bg-orange-900/30'
+              "
+              class="font-bold text-lg px-3 py-1 rounded animate-fade-in"
+            >
+              {{ mov.type === "inbound" ? "+" : "-" }}{{ mov.quantity }}
             </span>
           </div>
         </div>
@@ -407,7 +455,8 @@ const getSlicePath = (index: number, data: any[]) => {
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0px);
   }
   50% {
@@ -416,7 +465,8 @@ const getSlicePath = (index: number, data: any[]) => {
 }
 
 @keyframes bounce {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -425,7 +475,8 @@ const getSlicePath = (index: number, data: any[]) => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -436,7 +487,8 @@ const getSlicePath = (index: number, data: any[]) => {
 }
 
 @keyframes pulseSubtle {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {

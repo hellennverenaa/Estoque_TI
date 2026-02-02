@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue';
 import { jsPDF } from 'jspdf'; // Importação direta
 import autoTable from 'jspdf-autotable'; // Importação direta
 import {
@@ -26,6 +26,11 @@ import { toast } from 'vue-sonner';
 const materialStore = useMaterialStore();
 const movimentacaoStore = useMovimentacaoStore();
 
+onMounted(() => {
+  materialStore.ensureLoaded().catch(() => undefined);
+  movimentacaoStore.ensureLoaded().catch(() => undefined);
+});
+
 // ============================================
 // STATE - FILTROS
 // ============================================
@@ -40,7 +45,7 @@ const filtros = reactive({
 // COMPUTED - OPÇÕES E DADOS
 // ============================================
 const opcoesCategoria = computed(() => {
-  const categorias = [...new Set(materialStore.materials.map(m => m.categoria))];
+  const categorias = [...new Set(materialStore.materials.map(m => m.category))];
   return [
     { value: 'todas', label: 'Todas as Categorias' },
     ...categorias.map(cat => ({ value: cat, label: cat }))
@@ -54,8 +59,8 @@ const opcoesTipo = [
 ];
 
 const estatisticasGerais = computed(() => {
-  const totalItens = materialStore.materials.reduce((sum, m) => sum + m.quantidade, 0);
-  const valorTotal = materialStore.materials.reduce((sum, m) => sum + (m.quantidade * (m.valor || 0)), 0);
+  const totalItens = materialStore.materials.reduce((sum, m) => sum + m.quantity, 0);
+  const valorTotal = materialStore.materials.reduce((sum, m) => sum + (m.quantity * (Number(m.value) || 0)), 0);
   const totalMovimentacoes = movimentacaoStore.movimentacoes.length;
   return { totalItens, valorTotal, totalMovimentacoes };
 });
@@ -63,7 +68,7 @@ const estatisticasGerais = computed(() => {
 const dadosFiltrados = computed(() => {
   let materiais = materialStore.materials;
   if (filtros.categoria !== 'todas') {
-    materiais = materiais.filter(m => m.categoria === filtros.categoria);
+    materiais = materiais.filter(m => m.category === filtros.categoria);
   }
 
   let movimentacoes = [...movimentacaoStore.movimentacoes];
@@ -76,7 +81,7 @@ const dadosFiltrados = computed(() => {
 });
 
 const estatisticasFiltradas = computed(() => {
-  const valorTotal = dadosFiltrados.value.materiais.reduce((sum, m) => sum + (m.quantidade * (m.valor || 0)), 0);
+  const valorTotal = dadosFiltrados.value.materiais.reduce((sum, m) => sum + (m.quantity * (Number(m.value) || 0)), 0);
   const totalEntradas = dadosFiltrados.value.movimentacoes.filter(m => m.tipo === 'entrada').reduce((sum, m) => sum + m.quantidade, 0);
   const totalSaidas = dadosFiltrados.value.movimentacoes.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + m.quantidade, 0);
   return { valorTotal, totalEntradas, totalSaidas, saldo: totalEntradas - totalSaidas };
@@ -112,8 +117,8 @@ const aplicarFiltros = () => toast.success('Filtros aplicados!');
 // PREPARAÇÃO DE DADOS
 // ============================================
 const prepararDadosEstoque = () => dadosFiltrados.value.materiais.map(m => ({
-  'Nome': m.nome, 'Categoria': m.categoria, 'Código': m.codigo,
-  'Qtd': String(m.quantidade), 'Local': m.local || '-', 'Status': m.quantidade === 0 ? 'SEM ESTOQUE' : 'OK'
+  'Nome': m.name, 'Categoria': m.category, 'Código': m.codigo || '-',
+  'Qtd': String(m.quantity), 'Local': m.local_storage || '-', 'Status': m.quantity === 0 ? 'SEM ESTOQUE' : 'OK'
 }));
 
 const prepararDadosMovimentacoes = () => dadosFiltrados.value.movimentacoes.map(m => ({

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { 
-  Save, Calendar, CheckCircle2, ScanBarcode, Lock, Scan, X, 
+  Calendar, CheckCircle2, ScanBarcode, Lock, Scan, X, 
   CheckCircle, ArrowRight, MapPin 
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
@@ -14,11 +14,17 @@ import Badge from '../components/Badge.vue';
 import { useMaterialStore } from '../stores/materialStore';
 import { useMovimentacaoStore } from '../stores/movimentacaoStore';
 import { useAuthStore } from '../stores/authStore';
-import { LOCAIS } from '../constants/lists'; // <--- IMPORTAÇÃO NOVA
+import { LOCAIS } from '../constants/lists';
 
 const materialStore = useMaterialStore();
 const movimentacaoStore = useMovimentacaoStore();
 const authStore = useAuthStore();
+
+onMounted(() => {
+  materialStore.ensureLoaded().catch(() => undefined);
+  movimentacaoStore.ensureLoaded().catch(() => undefined);
+  authStore.ensureLoaded().catch(() => undefined);
+});
 
 // --- Controles ---
 const showAuthModal = ref(false);
@@ -31,7 +37,7 @@ const materialEncontradoInfo = ref<string | null>(null);
 
 const formData = ref({
   tipo: 'entrada',
-  materialCodigo: '',
+  materialId: '',
   quantidade: '',
   responsavel: '',
   observacoes: '',
@@ -50,27 +56,26 @@ watch(buscaIdentificacao, (novoValor) => {
   const termoBusca = String(novoValor).trim().toLowerCase();
   
   const encontrado = materialStore.materials?.find(m => {
-    const cod = String(m.codigo).trim().toLowerCase();
-    const pat = String(m.patrimonio || '').trim().toLowerCase();
-    const ns = String(m.numeroSerie || '').trim().toLowerCase();
-    return cod === termoBusca || pat === termoBusca || ns === termoBusca;
+    const cod = String(m.codigo ?? '').trim().toLowerCase();
+    const ns = String(m.serial_number ?? '').trim().toLowerCase();
+    return (cod && cod === termoBusca) || (ns && ns === termoBusca);
   });
 
   if (encontrado) {
-    formData.value.materialCodigo = String(encontrado.codigo);
-    materialEncontradoInfo.value = encontrado.nome;
-    toast.success(`Item identificado: ${encontrado.nome}`);
+    formData.value.materialId = String(encontrado.id);
+    materialEncontradoInfo.value = encontrado.name;
+    toast.success(`Item identificado: ${encontrado.name}`);
   }
 });
 
 const materialSelecionado = computed(() => {
-  return materialStore.materials?.find(m => String(m.codigo) === String(formData.value.materialCodigo));
+  return materialStore.materials?.find(m => String(m.id) === String(formData.value.materialId));
 });
 
 // LÓGICA INTELIGENTE DE LOCAL:
 watch(materialSelecionado, (novoMaterial) => {
   if (novoMaterial) {
-    const localAtual = novoMaterial.local || '';
+    const localAtual = novoMaterial.local_storage || '';
     // Verifica se o local atual é um dos locais padrões (simples) definidos no arquivo de listas
     const isLocalSimples = LOCAIS.some(l => l.value === localAtual);
     
@@ -83,18 +88,25 @@ const abrirModalAuth = () => {
   if (!materialSelecionado.value) { toast.error('Selecione um material'); return; }
   if (!formData.value.quantidade) { toast.error('Informe a quantidade'); return; }
   if (!formData.value.local && formData.value.tipo === 'entrada') { toast.error('Informe o local de destino'); return; }
+
+  const quantidade = Math.abs(parseInt(formData.value.quantidade));
+  if (formData.value.tipo === 'saida' && quantidade > (materialSelecionado.value.quantity || 0)) {
+    toast.error('Quantidade insuficiente em estoque');
+    return;
+  }
   
   showAuthModal.value = true;
   authInput.value = '';
   nextTick(() => authInputRef.value?.focus());
 };
 
-const confirmarAuth = () => {
+const confirmarAuth = async () => {
+  await authStore.ensureLoaded().catch(() => undefined);
   const usuario = authStore.validarCracha(authInput.value);
   if (usuario) {
-    formData.value.responsavel = usuario.nome;
+    formData.value.responsavel = usuario.username;
     showAuthModal.value = false;
-    processarMovimentacao();
+    processarMovimentacao(Number(usuario.rfid || usuario.matricula));
   } else {
     toast.error('Crachá inválido');
     authInput.value = '';
@@ -102,64 +114,56 @@ const confirmarAuth = () => {
   }
 };
 
-const processarMovimentacao = () => {
-  const quantidade = Math.abs(parseInt(formData.value.quantidade));
-  const material = materialSelecionado.value!;
-  
-  const novaQuantidade = formData.value.tipo === 'entrada' 
-    ? material.quantidade + quantidade
-    : material.quantidade - quantidade;
+const processarMovimentacao = async (responsibleUserId: number) => {
+  try {
+    const quantidade = Math.abs(parseInt(formData.value.quantidade));
+    const material = materialSelecionado.value!;
 
-  let novoLocalString = material.local || '';
-  const localDestino = formData.value.local;
+    await movimentacaoStore.createMovimentacao({
+      tipo: formData.value.tipo as 'entrada' | 'saida',
+      productId: material.id,
+      quantity: quantidade,
+      responsibleUserId,
+      newLocation: formData.value.tipo === 'entrada' ? formData.value.local : undefined,
+      notes: formData.value.observacoes || undefined
+    });
 
-  if (formData.value.tipo === 'entrada') {
-    if (novoLocalString && !novoLocalString.includes(localDestino)) {
-      novoLocalString = `${novoLocalString} + ${localDestino}`;
-    } else if (!novoLocalString) {
-      novoLocalString = localDestino;
-    }
+    await materialStore.fetchMaterials();
+
+    showSuccessModal.value = true;
+
+    buscaIdentificacao.value = '';
+    materialEncontradoInfo.value = null;
+    formData.value = {
+      tipo: 'entrada',
+      materialId: '',
+      quantidade: '',
+      responsavel: '',
+      observacoes: '',
+      data: new Date().toISOString().split('T')[0],
+      local: ''
+    };
+  } catch (e: any) {
+    toast.error(e?.message || 'Erro ao registrar movimentação');
   }
-  
-  if (novaQuantidade <= 0) {
-    novoLocalString = '';
-  }
-
-  materialStore.updateMaterial(formData.value.materialCodigo, {
-    quantidade: novaQuantidade,
-    local: novoLocalString 
-  });
-
-  movimentacaoStore.addMovimentacao({
-    tipo: formData.value.tipo as 'entrada' | 'saida',
-    materialCodigo: formData.value.materialCodigo,
-    materialNome: material.nome,
-    quantidade: quantidade,
-    responsavel: formData.value.responsavel,
-    observacoes: formData.value.observacoes,
-    data: formData.value.data,
-    valor: material.valor ? material.valor * quantidade : undefined,
-    categoria: material.categoria
-  });
-
-  showSuccessModal.value = true;
-
-  buscaIdentificacao.value = '';
-  materialEncontradoInfo.value = null;
-  formData.value = {
-    tipo: 'entrada',
-    materialCodigo: '',
-    quantidade: '',
-    responsavel: '',
-    observacoes: '',
-    data: new Date().toISOString().split('T')[0],
-    local: ''
-  };
 };
 
 const formatarData = (d: string) => d.split('-').reverse().join('/');
 const historicoFiltrado = computed(() => movimentacaoStore.movimentacoes || []); 
-const materialOptions = computed(() => materialStore.materials.map(m => ({ value: m.codigo, label: m.nome })));
+const materialOptions = computed(() =>
+  materialStore.materials.map(m => ({
+    value: m.id,
+    label: m.codigo ? `${m.name} (${m.codigo})` : m.serial_number ? `${m.name} (${m.serial_number})` : m.name
+  }))
+);
+
+const badgeVariantByTipo = (tipo: string) => {
+  if (tipo === 'entrada') return 'success';
+  if (tipo === 'saida') return 'error';
+  if (tipo === 'transferencia') return 'warning';
+  if (tipo === 'ajuste') return 'info';
+  return 'default';
+};
 </script>
 
 <template>
@@ -221,7 +225,7 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
               </div>
             </div>
 
-            <Select v-model="formData.materialCodigo" label="Material *" :options="materialOptions" required />
+            <Select v-model="formData.materialId" label="Material *" :options="materialOptions" required />
             <Input v-model="formData.quantidade" label="Quantidade *" type="number" required />
             
             <div class="space-y-1">
@@ -230,8 +234,8 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
                 <span v-if="formData.tipo === 'entrada'" class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Adicionar Local</span>
               </div>
               <div class="relative">
-                <Select v-model="formData.local" :options="LOCAIS" required placeholder="Onde será guardado?" />
-                <div v-if="materialSelecionado && materialSelecionado.local && !materialSelecionado.local.includes(formData.local) && formData.local" class="absolute -bottom-5 right-0 text-xs text-blue-600 flex items-center gap-1 font-medium">
+                <Select v-model="formData.local" :options="LOCAIS" :required="formData.tipo === 'entrada'" placeholder="Onde será guardado?" />
+                <div v-if="materialSelecionado && materialSelecionado.local_storage && !materialSelecionado.local_storage.includes(formData.local) && formData.local" class="absolute -bottom-5 right-0 text-xs text-blue-600 flex items-center gap-1 font-medium">
                    <MapPin :size="12"/> Será adicionado aos locais existentes
                 </div>
               </div>
@@ -258,12 +262,12 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
                </div>
                <div>
                  <p class="text-xs text-blue-600 font-bold uppercase tracking-wider">Locais Onde Existe</p>
-                 <p class="text-gray-900 font-medium text-lg leading-tight">{{ materialSelecionado.local || 'Sem local definido' }}</p>
+                   <p class="text-gray-900 font-medium text-lg leading-tight">{{ materialSelecionado.local_storage || 'Sem local definido' }}</p>
                </div>
              </div>
              <div class="sm:ml-auto sm:text-right border-t sm:border-t-0 border-blue-200 pt-2 sm:pt-0">
                <p class="text-xs text-gray-500 uppercase tracking-wider">Saldo Total</p>
-               <p class="text-2xl font-bold text-gray-900">{{ materialSelecionado.quantidade }}</p>
+                 <p class="text-2xl font-bold text-gray-900">{{ materialSelecionado.quantity }}</p>
              </div>
           </div>
         </Card>
@@ -294,9 +298,9 @@ const materialOptions = computed(() => materialStore.materials.map(m => ({ value
           <tbody class="divide-y divide-gray-200">
             <tr v-for="mov in historicoFiltrado" :key="mov.id">
               <td class="px-6 py-4 text-sm">{{ formatarData(mov.data) }}</td>
-              <td class="px-6 py-4"><Badge :variant="mov.tipo === 'entrada' ? 'success' : 'error'">{{ mov.tipo.toUpperCase() }}</Badge></td>
+              <td class="px-6 py-4"><Badge :variant="badgeVariantByTipo(mov.tipo)">{{ mov.tipo.toUpperCase() }}</Badge></td>
               <td class="px-6 py-4 text-sm">{{ mov.materialNome }}</td>
-              <td class="px-6 py-4 text-sm">{{ mov.responsavel }}</td>
+              <td class="px-6 py-4 text-sm">{{ mov.responsavel || mov.responsavelId }}</td>
             </tr>
           </tbody>
         </table>
