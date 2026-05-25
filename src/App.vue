@@ -50,8 +50,7 @@ const toggleSidebarCollapse = () => {
       />
 
       <main
-        class="pt-24 pb-12 px-6 lg:px-8 transition-all duration-300"
-        :class="isSidebarCollapsed ? 'lg:pl-28' : 'lg:pl-80'"
+        class="pt-24 pb-12 px-6 transition-all duration-300 lg:ml-[80px]"
       >
         <div class="max-w-7xl mx-auto">
           <router-view v-slot="{ Component }">

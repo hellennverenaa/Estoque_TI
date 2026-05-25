@@ -269,14 +269,14 @@ onMounted(async () => {
                       <div v-else class="flex justify-end gap-2">
                         <button 
                           @click="startEditing(user)"
-                          class="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                          class="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all"
                           title="Editar permissão"
                         >
                           <Edit2 :size="18" />
                         </button>
                         <button 
                           @click="handleDeleteUser(user.id, user.username)"
-                          class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                          class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-all"
                           title="Remover usuário"
                         >
                           <Trash2 :size="18" />

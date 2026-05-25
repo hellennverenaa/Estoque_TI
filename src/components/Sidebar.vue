@@ -57,7 +57,7 @@ const handleNavigate = (path: string) => {
     class="fixed top-16 left-0 bottom-0 bg-white border-r border-[#E5E7EB]/60 z-[850] shadow-[0_4px_6px_-2px_rgb(0_0_0_/_0.05),_0_10px_15px_-3px_rgb(0_0_0_/_0.08)] transition-all duration-300 ease-in-out"
     :class="[
       isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
-      isCollapsed ? 'lg:w-20' : 'w-72'
+      isCollapsed ? 'w-20' : 'w-72'
     ]"
   >
     <div class="h-full flex flex-col overflow-y-auto">
