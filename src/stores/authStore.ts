@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { userApi } from '../services/userApi';
 
 export interface Usuario {
@@ -7,6 +7,7 @@ export interface Usuario {
   username: string;
   matricula: number | string;
   rfid: number | string;
+  role: string;
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -33,25 +34,31 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   // Ações de Gerenciamento
-  // const adicionarUsuario = (usuario: Omit<Usuario, 'id'>) => {
-  //   if (usuarios.value.some(u => u.codigoCracha === usuario.codigoCracha)) {
-  //     throw new Error('Este código de crachá já está em uso!');
-  //   }
+  const adicionarUsuario = async (matricula: number, role: string, adminRfid: number) => {
+    loading.value = true;
+    error.value = null;
+    try {
+      await userApi.create(matricula, role, adminRfid);
+      await fetchAllowedUsers();
+    } catch (e: any) {
+      throw new Error(e.message || 'Erro ao adicionar usuário.');
+    } finally {
+      loading.value = false;
+    }
+  };
 
-  //   usuarios.value.push({
-  //     id: Date.now().toString(), // ID único baseado no tempo
-  //     ...usuario
-  //   });
-  // };
-
-  // const removerUsuario = (id: string) => {
-  //   const user = usuarios.value.find(u => u.id === id);
-  //   // Impede deletar o último Admin para não trancar o sistema
-  //   if (user?.cargo === 'Admin' && usuarios.value.filter(u => u.cargo === 'Admin').length <= 1) {
-  //     throw new Error('Segurança: Não é possível remover o único Administrador do sistema.');
-  //   }
-  //   usuarios.value = usuarios.value.filter(u => u.id !== id);
-  // };
+  const removerUsuario = async (id: string, adminRfid: number) => {
+    loading.value = true;
+    error.value = null;
+    try {
+      await userApi.delete(id, adminRfid);
+      await fetchAllowedUsers();
+    } catch (e: any) {
+      throw new Error(e.message || 'Erro ao remover usuário.');
+    } finally {
+      loading.value = false;
+    }
+  };
 
   const ensureLoaded = async () => {
     if (usuarios.value) return;
@@ -78,7 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
     fetchAllowedUsers,
     usuarios,
     validarCracha,
-    // adicionarUsuario,
-    // removerUsuario
+    adicionarUsuario,
+    removerUsuario
   };
 });

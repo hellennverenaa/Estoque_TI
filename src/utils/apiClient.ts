@@ -95,7 +95,7 @@ export const createApiClient = (options: ApiClientOptions = {}) => {
     patch: <T>(path: string, body?: unknown, headers?: Record<string, string>, signal?: AbortSignal) =>
       request<T>('PATCH', path, { body, headers, signal }),
 
-    delete: <T>(path: string, signal?: AbortSignal) => request<T>('DELETE', path, { signal })
+    delete: <T>(path: string, headers?: Record<string, string>, signal?: AbortSignal) => request<T>('DELETE', path, { headers, signal })
   };
 };
 

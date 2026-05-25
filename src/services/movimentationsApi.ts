@@ -1,6 +1,6 @@
 import { apiClient } from '../utils/apiClient';
 
-export type ApiMovimentationType = 'inbound' | 'outbound' | 'transfer' | 'adjustment';
+export type ApiMovimentationType = 'inbound' | 'outbound' | 'transfer' | 'adjustment' | 'loan';
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -20,6 +20,8 @@ export type ApiMovimentation = {
   local_storage?: string | null;
   product_old_local_storage?: string | null;
   appointment?: string | null;
+  destination_type?: string | null;
+  destination_value?: string | null;
   created_at: string;
   updated_at: string;
   product?: {
@@ -60,6 +62,8 @@ export type CreateMovimentationPayload = {
   quantity: number;
   new_location?: string;
   notes?: string;
+  destination_type?: string;
+  destination_value?: string;
 };
 
 export const movimentationsApi = {

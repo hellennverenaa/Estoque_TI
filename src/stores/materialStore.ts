@@ -27,6 +27,7 @@ export interface Material {
   local_storage?: string;
   created_by: number | string;
   fornecedor?: string;
+  loaned_quantity?: number;
 }
 
 export const useMaterialStore = defineStore('material', () => {
@@ -36,8 +37,7 @@ export const useMaterialStore = defineStore('material', () => {
   const initialized = ref(false);
 
   const fromApiProduct = (p: ApiProduct): Material => {
-    const codigo = (p.codigo ?? '') || '';
-    const isPatrimonio = codigo && !codigo.includes('-');
+    const codigo = typeof p.codigo === 'string' ? p.codigo.trim() : '';
 
     return {
       id: p.id,
@@ -48,9 +48,17 @@ export const useMaterialStore = defineStore('material', () => {
       value: p.value ?? undefined,
       serial_number: p.serial_number ?? undefined,
       local_storage: p.local_storage ?? undefined,
-      codigo: isPatrimonio ? codigo : undefined,
-      created_by: p.created_by
+      codigo: codigo ? codigo : undefined,
+      created_by: p.created_by,
+      loaned_quantity: p.loaned_quantity || 0
     };
+  };
+
+  const unwrapProduct = (payload: unknown): ApiProduct => {
+    if (payload && typeof payload === 'object' && 'data' in (payload as any)) {
+      return (payload as any).data as ApiProduct;
+    }
+    return payload as ApiProduct;
   };
 
   const fetchMaterials = async (filters?: ProductListFilters) => {
@@ -81,8 +89,8 @@ export const useMaterialStore = defineStore('material', () => {
   const createMaterial = async (material: CreateProductDTO, userRfid: number | string) => {
     try {
       const created = await productsApi.create(material, userRfid);
-      
-      return created;
+
+      return unwrapProduct(created);
     } catch (error) {
       throw error;
     }
@@ -111,19 +119,20 @@ export const useMaterialStore = defineStore('material', () => {
       updated_by: userRfid,
     };
 
-    console.log(payload);
-    
-
     const updated = await productsApi.update(id, payload, userRfid);
+    const updatedProduct = unwrapProduct(updated);
     const index = materials.value.findIndex(m => m.id === id);
     if (index !== -1) {
-      materials.value[index] = fromApiProduct(updated);
+      materials.value[index] = fromApiProduct(updatedProduct);
+    } else {
+      // Se não existir no cache atual (ex: filtros ativos), adiciona para manter consistência local
+      materials.value.push(fromApiProduct(updatedProduct));
     }
-    return updated;
+    return updatedProduct;
   };
 
-  const deleteMaterial = async (id: string) => {
-    await productsApi.remove(id);
+  const deleteMaterial = async (id: string, userRfid: number | string) => {
+    await productsApi.remove(id, userRfid);
     materials.value = materials.value.filter(m => m.id !== id);
   };
 

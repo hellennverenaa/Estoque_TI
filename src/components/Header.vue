@@ -27,7 +27,7 @@ const showNotifications = ref(false);
 const showProfileMenu = ref(false);
 
 // Lógica simples de notificação
-const alertas = computed(() => materialStore.materials.filter(m => m.quantidade <= m.minimo));
+const alertas = computed(() => materialStore.materials.filter(m => m.quantity <= m.minimal_quantity));
 const temNotificacao = computed(() => alertas.value.length > 0);
 
 const toggleNotifications = () => {
@@ -93,7 +93,7 @@ const toggleProfile = () => {
             </h3>
             <div v-if="alertas.length > 0" class="max-h-60 overflow-y-auto space-y-2">
               <div v-for="item in alertas.slice(0, 5)" :key="item.codigo" class="text-sm p-2 bg-red-50 rounded-lg text-red-700 border border-red-100">
-                <strong>{{ item.nome }}</strong> está com estoque baixo ({{ item.quantidade }}).
+                <strong>{{ item.name }}</strong> está com estoque baixo ({{ item.quantity }}).
               </div>
               <div v-if="alertas.length > 5" class="text-xs text-center text-gray-500 pt-2">
                 + {{ alertas.length - 5 }} outros itens

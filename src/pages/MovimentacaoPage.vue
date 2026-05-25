@@ -42,12 +42,28 @@ const formData = ref({
   responsavel: '',
   observacoes: '',
   data: new Date().toISOString().split('T')[0],
-  local: '' 
+  local: '',
+  destination_type: '',
+  destination_value: ''
 });
 
 const tipoOptions = [
   { value: 'entrada', label: 'Entrada' },
   { value: 'saida', label: 'Saída' },
+  { value: 'emprestimo', label: 'Empréstimo' }
+];
+
+const destinationTypeOptions = [
+  { value: 'Pessoa', label: 'Pessoa (Matrícula)' },
+  { value: 'Setor', label: 'Setor' }
+];
+
+const setoresOptions = [
+  { value: 'TI', label: 'TI' },
+  { value: 'RH', label: 'Recursos Humanos' },
+  { value: 'Financeiro', label: 'Financeiro' },
+  { value: 'Producao', label: 'Produção' },
+  { value: 'Diretoria', label: 'Diretoria' }
 ];
 
 watch(buscaIdentificacao, (novoValor) => {
@@ -90,9 +106,16 @@ const abrirModalAuth = () => {
   if (!formData.value.local && formData.value.tipo === 'entrada') { toast.error('Informe o local de destino'); return; }
 
   const quantidade = Math.abs(parseInt(formData.value.quantidade));
-  if (formData.value.tipo === 'saida' && quantidade > (materialSelecionado.value.quantity || 0)) {
+  if ((formData.value.tipo === 'saida' || formData.value.tipo === 'emprestimo') && quantidade > (materialSelecionado.value.quantity || 0)) {
     toast.error('Quantidade insuficiente em estoque');
     return;
+  }
+
+  if (formData.value.tipo === 'emprestimo') {
+    if (!formData.value.destination_type || !formData.value.destination_value) {
+      toast.error('Para empréstimo, o destino (tipo e valor) é obrigatório.');
+      return;
+    }
   }
   
   showAuthModal.value = true;
@@ -120,12 +143,14 @@ const processarMovimentacao = async (responsibleUserId: number) => {
     const material = materialSelecionado.value!;
 
     await movimentacaoStore.createMovimentacao({
-      tipo: formData.value.tipo as 'entrada' | 'saida',
+      tipo: formData.value.tipo as 'entrada' | 'saida' | 'emprestimo',
       productId: material.id,
       quantity: quantidade,
       responsibleUserId,
       newLocation: formData.value.tipo === 'entrada' ? formData.value.local : undefined,
-      notes: formData.value.observacoes || undefined
+      notes: formData.value.observacoes || undefined,
+      destinationType: (formData.value.tipo === 'saida' || formData.value.tipo === 'emprestimo') && formData.value.destination_type ? formData.value.destination_type : undefined,
+      destinationValue: (formData.value.tipo === 'saida' || formData.value.tipo === 'emprestimo') && formData.value.destination_value ? formData.value.destination_value : undefined
     });
 
     await materialStore.fetchMaterials();
@@ -141,7 +166,9 @@ const processarMovimentacao = async (responsibleUserId: number) => {
       responsavel: '',
       observacoes: '',
       data: new Date().toISOString().split('T')[0],
-      local: ''
+      local: '',
+      destination_type: '',
+      destination_value: ''
     };
   } catch (e: any) {
     toast.error(e?.message || 'Erro ao registrar movimentação');
@@ -161,6 +188,7 @@ const badgeVariantByTipo = (tipo: string) => {
   if (tipo === 'entrada') return 'success';
   if (tipo === 'saida') return 'error';
   if (tipo === 'transferencia') return 'warning';
+  if (tipo === 'emprestimo') return 'warning';
   if (tipo === 'ajuste') return 'info';
   return 'default';
 };
@@ -228,17 +256,48 @@ const badgeVariantByTipo = (tipo: string) => {
             <Select v-model="formData.materialId" label="Material *" :options="materialOptions" required />
             <Input v-model="formData.quantidade" label="Quantidade *" type="number" required />
             
-            <div class="space-y-1">
+            <template v-if="formData.tipo === 'saida' || formData.tipo === 'emprestimo'">
+              <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                <Select 
+                  v-model="formData.destination_type" 
+                  :label="formData.tipo === 'emprestimo' ? 'Tipo de Destino *' : 'Tipo de Destino (Opcional)'" 
+                  :options="destinationTypeOptions" 
+                  :required="formData.tipo === 'emprestimo'"
+                  placeholder="Selecione Pessoa ou Setor"
+                />
+                
+                <Input 
+                  v-if="formData.destination_type === 'Pessoa'" 
+                  v-model="formData.destination_value" 
+                  :label="formData.tipo === 'emprestimo' ? 'Matrícula *' : 'Matrícula (Opcional)'" 
+                  :required="formData.tipo === 'emprestimo'"
+                  placeholder="Digite a matrícula" 
+                />
+                <Select 
+                  v-else-if="formData.destination_type === 'Setor'" 
+                  v-model="formData.destination_value" 
+                  :label="formData.tipo === 'emprestimo' ? 'Setor *' : 'Setor (Opcional)'" 
+                  :required="formData.tipo === 'emprestimo'"
+                  :options="setoresOptions"
+                  placeholder="Selecione o setor"
+                />
+                <div v-else class="flex items-center text-sm text-gray-400 italic mt-7">
+                  Selecione o tipo de destino primeiro
+                </div>
+              </div>
+            </template>
+            
+            <div v-if="formData.tipo === 'entrada'" class="space-y-1">
               <div class="flex items-center justify-between">
                 <label class="block text-sm font-medium text-gray-700 ml-1">Local / Destino *</label>
                 <span v-if="formData.tipo === 'entrada'" class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Adicionar Local</span>
               </div>
-              <div class="relative">
-                <Select v-model="formData.local" :options="LOCAIS" :required="formData.tipo === 'entrada'" placeholder="Onde será guardado?" />
-                <div v-if="materialSelecionado && materialSelecionado.local_storage && !materialSelecionado.local_storage.includes(formData.local) && formData.local" class="absolute -bottom-5 right-0 text-xs text-blue-600 flex items-center gap-1 font-medium">
-                   <MapPin :size="12"/> Será adicionado aos locais existentes
-                </div>
+            <div v-if="formData.tipo === 'entrada'" class="relative">
+              <Select v-model="formData.local" :options="LOCAIS" :required="formData.tipo === 'entrada'" placeholder="Onde será guardado?" />
+              <div v-if="materialSelecionado && materialSelecionado.local_storage && !materialSelecionado.local_storage.includes(formData.local) && formData.local" class="absolute -bottom-5 right-0 text-xs text-blue-600 flex items-center gap-1 font-medium">
+                 <MapPin :size="12"/> Será adicionado aos locais existentes
               </div>
+            </div>
             </div>
 
             <Input v-model="formData.data" label="Data *" type="date" required />

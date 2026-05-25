@@ -63,8 +63,12 @@
             <div>
               <p class="text-sm text-gray-500">Estoque</p>
               <p class="font-medium">
-                {{ selectedMaterial.quantity }} - (Min: {{ selectedMaterial.minimal_quantity }})
+                {{ selectedMaterial.quantity }} disponíveis 
+                <span v-if="selectedMaterial.loaned_quantity" class="text-warning text-yellow-600">
+                  ({{ selectedMaterial.loaned_quantity }} em empréstimo)
+                </span>
               </p>
+              <p class="text-xs text-gray-400">(Min: {{ selectedMaterial.minimal_quantity }})</p>
             </div>
             <div>
               <p class="text-sm text-gray-500">Local</p>
@@ -142,13 +146,16 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
-            <tr v-for="item in filteredMaterials" :key="item.codigo" class="hover:bg-gray-50">
+            <tr v-for="item in filteredMaterials" :key="item.id" class="hover:bg-gray-50">
               <td class="px-6 py-4">
                 <p class="font-medium text-gray-900">{{ item.name }}</p>
                 <p class="text-xs text-gray-400">{{ item.codigo }}</p>
               </td>
               <td class="px-6 py-4 text-gray-500 capitalize">{{ item.category }}</td>
-              <td class="px-6 py-4 font-medium">{{ item.quantity }}</td>
+              <td class="px-6 py-4">
+                <p class="font-medium">{{ item.quantity }}</p>
+                <p v-if="item.loaned_quantity" class="text-xs text-yellow-600 font-medium">Empréstimo: {{ item.loaned_quantity }}</p>
+              </td>
               <td class="px-6 py-4">
                 <Badge :variant="getStatusBadge(item.quantity, item.minimal_quantity).variant">
                   {{ getStatusBadge(item.quantity, item.minimal_quantity).label }}
@@ -177,7 +184,7 @@
 
     <!-- Lista Produtos Mobile -->
     <div class="lg:hidden flex flex-col gap-4">
-      <Card v-for="item in filteredMaterials" :key="item.codigo">
+      <Card v-for="item in filteredMaterials" :key="item.id">
         <div class="flex gap-4">
           <div class="flex-1 min-w-0">
             <h3 class="font-semibold text-[#111827] mb-1 truncate">{{ item.name }}</h3>
@@ -192,7 +199,9 @@
             <span class="text-gray-400">Código:</span> <span class="ml-1 text-gray-900">{{ item.codigo }}</span>
           </div>
           <div>
-            <span class="text-gray-400">Qtd:</span> <span class="ml-1 font-bold">{{ item.quantity }}</span>
+            <span class="text-gray-400">Qtd:</span> 
+            <span class="ml-1 font-bold">{{ item.quantity }}</span>
+            <span v-if="item.loaned_quantity" class="ml-2 text-xs text-yellow-600 font-medium">(Emp: {{ item.loaned_quantity }})</span>
           </div>
         </div>
         <div class="mt-3 flex gap-2">
@@ -214,7 +223,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, watch } from "vue";
-import { useRouter } from "vue-router";
+
 import { toast } from "vue-sonner";
 import { Search, Edit2, Eye, Filter, X, CheckCircle, Lock } from "lucide-vue-next";
 
@@ -233,7 +242,7 @@ import { useAuthStore } from "../stores/authStore";
 // types
 import { ProductListFilters } from "../services/productsApi";
 
-const router = useRouter();
+
 const materialStore = useMaterialStore();
 const authStore = useAuthStore();
 

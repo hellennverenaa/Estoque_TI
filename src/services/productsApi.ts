@@ -8,6 +8,7 @@ export type ApiProduct = {
   serial_number?: string | null;
   minimal_quantity: number;
   quantity: number;
+  loaned_quantity?: number;
   value?: number | null;
   local_storage?: string | null;
   created_by: number
@@ -15,12 +16,19 @@ export type ApiProduct = {
   updated_at?: string;
 };
 
-export type ApiProductResponse = ApiProduct & {
+export type ApiProductResponse = {
   success: boolean;
-  count: number;
-  filters?: Record<string, unknown>;
   data: ApiProduct[];
-}
+  count: number;
+  filters?: Record<string, unknown> | null;
+  message?: string;
+};
+
+export type ApiSingleProductResponse = {
+  success: boolean;
+  data: ApiProduct;
+  message?: string;
+};
 
 export type ProductListFilters = {
   category?: string;
@@ -90,9 +98,9 @@ export type UpdateProductPayload = UpdateProductDTO & { updated_by: number; }
 export const productsApi = {
   list: (filters?: ProductListFilters) => apiClient.get<ApiProductResponse>('/api/products', filters),
 
-  getById: (id: string) => apiClient.get<ApiProduct>(`/api/products/${id}`),
+  getById: (id: string) => apiClient.get<ApiSingleProductResponse>(`/api/products/${id}`),
 
-  create: (payload: CreateProductPayload, userRfid: number | string) => apiClient.post<ApiProduct>('/api/products', 
+  create: (payload: CreateProductPayload, userRfid: number | string) => apiClient.post<ApiSingleProductResponse>('/api/products', 
     payload,
     {
       'x-rfid': userRfid.toString()
@@ -100,14 +108,18 @@ export const productsApi = {
   ),
 
   update: (id: string, payload: UpdateProductPayload, userRfid: number) =>
-    apiClient.patch<ApiProduct>(`/api/products/${id}`,
+    apiClient.patch<ApiSingleProductResponse>(`/api/products/${id}`,
       payload,
       {
         'x-rfid': userRfid.toString()
       }
     ),
 
-  remove: (id: string) => apiClient.delete<{ message: string }>(`/api/products/${id}`),
+  remove: (id: string, userRfid: number | string) => apiClient.delete<{ message: string }>(`/api/products/${id}`, {
+    'x-rfid': userRfid.toString()
+  }),
+
+  replenish: (id: string) => apiClient.post<{ success: boolean; message: string }>(`/api/products/${id}/replenish`),
 
   dashboardStats: (filters?: ProductsDashboardFilters) =>
     apiClient.get<ProductsDashboardResponse>('/api/products/stats/dashboard', filters)

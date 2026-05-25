@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue';
 import { 
-  Users, UserPlus, Trash2, Lock, ShieldCheck, LogOut, Scan, UserCog 
+  Users, UserPlus, Trash2, ShieldCheck, LogOut, Scan, UserCog 
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
@@ -17,17 +17,18 @@ const authStore = useAuthStore();
 const isLocked = ref(true); // Começa bloqueado
 const adminAuthInput = ref('');
 const adminAuthRef = ref<HTMLInputElement | null>(null);
+const adminRfid = ref<number | null>(null);
 
 const newUser = ref({
-  nome: '',
-  codigoCracha: '',
-  cargo: 'Operador'
+  matricula: '',
+  role: 'operator'
 });
 
 const cargosOptions = [
-  { value: 'Admin', label: 'Administrador (Acesso Total)' },
-  { value: 'Técnico', label: 'Técnico TI (Cadastro/Movimentação)' },
-  { value: 'Operador', label: 'Operador (Apenas Movimentação)' }
+  { value: 'admin_master', label: 'Admin Geral (Acesso Total)' },
+  { value: 'admin', label: 'Admin (Gerencia Sistema)' },
+  { value: 'operator', label: 'Operador (Movimentação)' },
+  { value: 'intern', label: 'Estagiário (Movimentação com restrições)' }
 ];
 
 // --- AÇÕES ---
@@ -35,13 +36,17 @@ const cargosOptions = [
 const verificarAdmin = () => {
   const usuario = authStore.validarCracha(adminAuthInput.value);
   
-  if (usuario && usuario.cargo === 'Admin') {
-    isLocked.value = false;
-    toast.success(`Acesso liberado: ${usuario.nome}`);
-    adminAuthInput.value = '';
-  } else if (usuario) {
-    toast.error('Acesso Negado: Apenas Administradores podem acessar.');
-    adminAuthInput.value = '';
+  if (usuario) {
+    if (usuario.role === 'admin' || usuario.role === 'admin_master') {
+      isLocked.value = false;
+      adminRfid.value = Number(usuario.rfid);
+      toast.success(`Acesso liberado: ${usuario.username}`);
+      adminAuthInput.value = '';
+    } else {
+      toast.error('Acesso negado: Nível de administrador exigido.');
+      adminAuthInput.value = '';
+      adminAuthRef.value?.focus();
+    }
   } else {
     toast.error('Crachá desconhecido.');
     adminAuthInput.value = '';
@@ -51,33 +56,32 @@ const verificarAdmin = () => {
 
 const sairModoAdmin = () => {
   isLocked.value = true;
+  adminRfid.value = null;
   toast.info('Sessão encerrada.');
 };
 
-const handleAddUser = () => {
-  if (!newUser.value.nome || !newUser.value.codigoCracha) {
-    toast.error('Preencha todos os campos obrigatórios.');
+const handleAddUser = async () => {
+  if (!newUser.value.matricula) {
+    toast.error('Preencha a matrícula obrigatória.');
     return;
   }
+  if (!adminRfid.value) return;
 
   try {
-    authStore.adicionarUsuario({
-      nome: newUser.value.nome,
-      codigoCracha: newUser.value.codigoCracha,
-      cargo: newUser.value.cargo as any
-    });
-
+    await authStore.adicionarUsuario(Number(newUser.value.matricula), newUser.value.role, adminRfid.value);
     toast.success('Usuário cadastrado com sucesso!');
-    newUser.value = { nome: '', codigoCracha: '', cargo: 'Operador' }; // Limpa form
+    newUser.value = { matricula: '', role: 'operator' }; // Limpa form
   } catch (e: any) {
     toast.error(e.message);
   }
 };
 
-const handleDeleteUser = (id: string, nome: string) => {
+const handleDeleteUser = async (id: string, nome: string) => {
+  if (!adminRfid.value) return;
+  
   if (confirm(`Tem certeza que deseja remover "${nome}"?`)) {
     try {
-      authStore.removerUsuario(id);
+      await authStore.removerUsuario(id, adminRfid.value);
       toast.success('Usuário removido.');
     } catch (e: any) {
       toast.error(e.message);
@@ -149,21 +153,16 @@ nextTick(() => {
             
             <div class="space-y-5">
               <Input 
-                v-model="newUser.nome" 
-                label="Nome Completo *" 
-                placeholder="Ex: Maria Oliveira" 
+                v-model="newUser.matricula" 
+                label="Matrícula *" 
+                placeholder="Ex: 12345" 
+                type="number"
               />
-              
-              <Input 
-                v-model="newUser.codigoCracha" 
-                label="Código do Crachá *" 
-                placeholder="Bipe o novo crachá..." 
-              />
-              
+
               <Select 
-                v-model="newUser.cargo" 
-                label="Nível de Permissão *" 
-                :options="cargosOptions" 
+                v-model="newUser.role" 
+                label="Permissão *" 
+                :options="cargosOptions"
               />
 
               <div class="pt-2">
@@ -183,7 +182,7 @@ nextTick(() => {
                 <Users :size="22" class="text-gray-600" />
                 <h3 class="font-bold text-gray-800 text-lg">Usuários Cadastrados</h3>
               </div>
-              <Badge variant="default">{{ authStore.usuarios.length }} ativos</Badge>
+              <Badge variant="default">{{ authStore.usuarios?.length || 0 }} ativos</Badge>
             </div>
 
             <div class="overflow-x-auto rounded-xl border border-gray-200">
@@ -197,26 +196,26 @@ nextTick(() => {
                   </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-100">
-                  <tr v-for="user in authStore.usuarios" :key="user.id" class="hover:bg-blue-50/50 transition-colors group">
+                  <tr v-for="user in (authStore.usuarios || [])" :key="user.id" class="hover:bg-blue-50/50 transition-colors group">
                     <td class="px-6 py-4 whitespace-nowrap">
                       <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 border border-gray-200">
-                          {{ user.nome.charAt(0).toUpperCase() }}
+                          {{ user.username.charAt(0).toUpperCase() }}
                         </div>
-                        <span class="font-medium text-gray-900">{{ user.nome }}</span>
+                        <span class="font-medium text-gray-900">{{ user.username }}</span>
                       </div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                      <code class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-mono border border-gray-200">{{ user.codigoCracha }}</code>
+                      <code class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-mono border border-gray-200">{{ user.rfid }}</code>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                      <Badge v-if="user.cargo === 'Admin'" variant="warning" class="shadow-sm">ADMIN</Badge>
-                      <Badge v-else-if="user.cargo === 'Técnico'" variant="success" class="shadow-sm">TÉCNICO</Badge>
-                      <Badge v-else variant="default">OPERADOR</Badge>
+                      <Badge variant="success" class="shadow-sm">
+                        {{ cargosOptions.find(c => c.value === user.role)?.label?.split(' ')[0] || user.role }}
+                      </Badge>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right">
                       <button 
-                        @click="handleDeleteUser(user.id, user.nome)"
+                        @click="handleDeleteUser(user.id, user.username)"
                         class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                         title="Remover usuário"
                       >
@@ -229,7 +228,7 @@ nextTick(() => {
             </div>
             
             <p class="text-xs text-gray-400 mt-4 text-center">
-              * Administradores têm acesso total. Técnicos podem cadastrar itens. Operadores apenas registram movimentações.
+              * Todos os usuários listados têm acesso ao sistema usando seus crachás.
             </p>
           </Card>
         </div>

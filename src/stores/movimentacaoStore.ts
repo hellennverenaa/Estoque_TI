@@ -5,7 +5,7 @@ import { useMaterialStore } from './materialStore';
 
 export interface Movimentacao {
   id: string;
-  tipo: 'entrada' | 'saida' | 'transferencia' | 'ajuste';
+  tipo: 'entrada' | 'saida' | 'transferencia' | 'ajuste' | 'emprestimo';
   materialId: string;
   materialCodigo: string;
   materialNome: string;
@@ -13,6 +13,8 @@ export interface Movimentacao {
   responsavelId: number;
   responsavel?: string;
   observacoes: string;
+  destination_type?: string;
+  destination_value?: string;
   data: string;
   valor?: number;
   categoria?: string;
@@ -29,6 +31,7 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
     if (type === 'outbound') return 'saida';
     if (type === 'transfer') return 'transferencia';
     if (type === 'adjustment') return 'ajuste';
+    if (type === 'loan') return 'emprestimo';
     return 'entrada';
   };
 
@@ -36,6 +39,7 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
     if (type === 'saida') return 'outbound';
     if (type === 'transferencia') return 'transfer';
     if (type === 'ajuste') return 'adjustment';
+    if (type === 'emprestimo') return 'loan';
     return 'inbound';
   };
 
@@ -61,6 +65,8 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
       responsavelId: m.movimented_by,
       responsavel: String(m.movimented_by),
       observacoes: m.appointment || '',
+      destination_type: m.destination_type || undefined,
+      destination_value: m.destination_value || undefined,
       data: toDateOnly(m.created_at),
       valor: valorUnit ? Number(valorUnit) * m.quantity : undefined,
       categoria
@@ -96,6 +102,8 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
     responsibleUserId: number;
     newLocation?: string;
     notes?: string;
+    destinationType?: string;
+    destinationValue?: string;
   };
 
   const createMovimentacao = async (input: CreateMovimentacaoInput) => {
@@ -105,7 +113,9 @@ export const useMovimentacaoStore = defineStore('movimentacao', () => {
       movimented_by: input.responsibleUserId,
       quantity: input.quantity,
       new_location: input.newLocation,
-      notes: input.notes
+      notes: input.notes,
+      destination_type: input.destinationType,
+      destination_value: input.destinationValue
     };
 
     const created = await movimentationsApi.create(payload);

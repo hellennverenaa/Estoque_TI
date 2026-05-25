@@ -116,16 +116,16 @@ export const exportToPDF = async (data: any[], filename: string, title: string, 
 // Preparar dados de materiais para exportação
 export const prepareMaterialsData = (materials: Material[]) => {
   return materials.map(m => ({
-    nome: m.nome,
-    categoria: m.categoria,
+    nome: m.name,
+    categoria: m.category,
     codigo: m.codigo,
-    quantidade: m.quantidade,
-    minimo: m.minimo,
-    local: m.local,
+    quantidade: m.quantity,
+    minimo: m.minimal_quantity,
+    local: m.local_storage,
     fornecedor: m.fornecedor || '-',
-    valor: m.valor ? `R$ ${m.valor.toFixed(2)}` : '-',
-    valortotal: m.valor ? `R$ ${(m.quantidade * m.valor).toFixed(2)}` : '-',
-    status: m.quantidade === 0 ? 'SEM ESTOQUE' : m.quantidade < m.minimo ? 'BAIXO' : 'OK'
+    valor: m.value ? `R$ ${Number(m.value).toFixed(2)}` : '-',
+    valortotal: m.value ? `R$ ${(m.quantity * Number(m.value)).toFixed(2)}` : '-',
+    status: m.quantity === 0 ? 'SEM ESTOQUE' : m.quantity < m.minimal_quantity ? 'BAIXO' : 'OK'
   }));
 };
 
@@ -146,10 +146,10 @@ export const prepareMovimentacoesData = (movimentacoes: Movimentacao[]) => {
 
 // Gerar relatório completo de estoque
 export const generateFullStockReport = (materials: Material[], movimentacoes: Movimentacao[]) => {
-  const totalItens = materials.reduce((sum, m) => sum + m.quantidade, 0);
-  const valorTotal = materials.reduce((sum, m) => sum + (m.quantidade * (m.valor || 0)), 0);
-  const abaixoDoMinimo = materials.filter(m => m.quantidade < m.minimo).length;
-  const semEstoque = materials.filter(m => m.quantidade === 0).length;
+  const totalItens = materials.reduce((sum, m) => sum + m.quantity, 0);
+  const valorTotal = materials.reduce((sum, m) => sum + (m.quantity * (Number(m.value) || 0)), 0);
+  const abaixoDoMinimo = materials.filter(m => m.quantity < m.minimal_quantity).length;
+  const semEstoque = materials.filter(m => m.quantity === 0).length;
   
   const totalEntradas = movimentacoes.filter(m => m.tipo === 'entrada').reduce((sum, m) => sum + m.quantidade, 0);
   const totalSaidas = movimentacoes.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + m.quantidade, 0);
@@ -160,7 +160,7 @@ export const generateFullStockReport = (materials: Material[], movimentacoes: Mo
       valorTotal,
       abaixoDoMinimo,
       semEstoque,
-      totalCategorias: [...new Set(materials.map(m => m.categoria))].length,
+      totalCategorias: [...new Set(materials.map(m => m.category))].length,
       totalMateriais: materials.length
     },
     movimentacoes: {

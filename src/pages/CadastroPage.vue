@@ -126,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { Save, Archive, Barcode, Wand2, Info, AlertCircle } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import Card from "../components/Card.vue";
@@ -135,7 +135,7 @@ import Select from "../components/Select.vue";
 import Button from "../components/Button.vue";
 import { useAuthStore } from "../stores/authStore";
 import { LOCAIS, CATEGORIAS } from "../constants/lists";
-import { useMaterialStore, CreateProductDTO } from "../stores/materialStore";
+import { useMaterialStore } from "../stores/materialStore";
 
 const materialStore = useMaterialStore();
 const authStore = useAuthStore();

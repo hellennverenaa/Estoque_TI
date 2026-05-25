@@ -5,6 +5,8 @@ import Card from '../components/Card.vue';
 import Badge from '../components/Badge.vue';
 import Button from '../components/Button.vue';
 import { useMaterialStore } from '../stores/materialStore';
+import { productsApi } from '../services/productsApi';
+import { toast } from 'vue-sonner';
 
 const emit = defineEmits<{
   navigate: [page: string]
@@ -17,34 +19,21 @@ onMounted(() => {
 });
 
 const materiaisAbaixoDoMinimo = computed(() =>
-  materialStore.materials.filter(m => m.quantidade < m.minimo)
+  materialStore.materials.filter(m => m.quantity < m.minimal_quantity)
 );
 
 const materiaisSemEstoque = computed(() =>
-  materialStore.materials.filter(m => m.quantidade === 0)
+  materialStore.materials.filter(m => m.quantity === 0)
 );
 
 // Função para gerar o link de email e abrir o cliente de email
-const solicitarReabastecimento = (material: any) => {
-  const assunto = encodeURIComponent(`Solicitação de Reabastecimento: ${material.nome}`);
-  const corpo = encodeURIComponent(
-`Olá,
-
-Gostaria de solicitar o reabastecimento do seguinte item:
-
-- Item: ${material.nome}
-- Código: ${material.codigo}
-- Categoria: ${material.categoria}
-- Estoque Atual: ${material.quantidade}
-- Estoque Mínimo Desejado: ${material.minimo}
-
-Aguardo retorno sobre prazos e valores.
-
-Atenciosamente.`
-  );
-
-  // Abre o cliente de email padrão
-  window.open(`mailto:?subject=${assunto}&body=${corpo}`, '_blank');
+const solicitarReabastecimento = async (material: any) => {
+  try {
+    const response = await productsApi.replenish(material.id);
+    toast.success(response.message || 'Solicitação encaminhada ao setor de compras');
+  } catch (error: any) {
+    toast.error(error.message || 'Erro ao solicitar reposição');
+  }
 };
 </script>
 
@@ -76,18 +65,12 @@ Atenciosamente.`
         >
           <div class="flex items-center gap-4">
             <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 shrink-0 border border-gray-200">
-              <img 
-                v-if="material.foto" 
-                :src="material.foto" 
-                :alt="material.nome" 
-                class="w-full h-full rounded-lg object-cover" 
-              />
-              <Package v-else :size="24" stroke-width="1.5" />
+              <Package :size="24" stroke-width="1.5" />
             </div>
             
             <div>
-              <p class="font-bold text-[#111827]">{{ material.nome }}</p>
-              <p class="text-sm text-[#6B7280]">Cod: {{ material.codigo }} • {{ material.categoria }}</p>
+              <p class="font-bold text-[#111827]">{{ material.name }}</p>
+              <p class="text-sm text-[#6B7280]">Cod: {{ material.codigo }} • {{ material.category }}</p>
             </div>
           </div>
           
@@ -126,21 +109,15 @@ Atenciosamente.`
         >
           <div class="flex items-center gap-4">
              <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 shrink-0 border border-gray-200">
-              <img 
-                v-if="material.foto" 
-                :src="material.foto" 
-                :alt="material.nome" 
-                class="w-full h-full rounded-lg object-cover" 
-              />
-              <Package v-else :size="24" stroke-width="1.5" />
+              <Package :size="24" stroke-width="1.5" />
             </div>
 
             <div>
-              <p class="font-bold text-[#111827]">{{ material.nome }}</p>
+              <p class="font-bold text-[#111827]">{{ material.name }}</p>
               <div class="text-sm text-[#6B7280] flex gap-2">
-                <span>Atual: <strong class="text-orange-600">{{ material.quantidade }}</strong></span>
+                <span>Atual: <strong class="text-orange-600">{{ material.quantity }}</strong></span>
                 <span class="text-gray-300">|</span>
-                <span>Mínimo: {{ material.minimo }}</span>
+                <span>Mínimo: {{ material.minimal_quantity }}</span>
               </div>
             </div>
           </div>
