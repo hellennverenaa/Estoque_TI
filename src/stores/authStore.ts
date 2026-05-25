@@ -34,7 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   // Ações de Gerenciamento
-  const adicionarUsuario = async (matricula: number, role: string, adminRfid: number) => {
+  const adicionarUsuario = async (matricula: number | string, role: string, adminRfid: number) => {
     loading.value = true;
     error.value = null;
     try {
@@ -55,6 +55,19 @@ export const useAuthStore = defineStore('auth', () => {
       await fetchAllowedUsers();
     } catch (e: any) {
       throw new Error(e.message || 'Erro ao remover usuário.');
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  const atualizarPermissao = async (id: string, role: string, adminRfid: number) => {
+    loading.value = true;
+    error.value = null;
+    try {
+      await userApi.updateRole(id, role, adminRfid);
+      await fetchAllowedUsers();
+    } catch (e: any) {
+      throw new Error(e.message || 'Erro ao atualizar permissão.');
     } finally {
       loading.value = false;
     }
@@ -86,6 +99,7 @@ export const useAuthStore = defineStore('auth', () => {
     usuarios,
     validarCracha,
     adicionarUsuario,
-    removerUsuario
+    removerUsuario,
+    atualizarPermissao
   };
 });
