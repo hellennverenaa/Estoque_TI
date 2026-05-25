@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue';
 import { 
-  Users, UserPlus, Trash2, ShieldCheck, LogOut, Scan, UserCog, Edit2, Check, X
+  Users, UserPlus, Trash2, ShieldCheck, LogOut, Scan, UserCog, Edit2, Check, X, Timer, Save
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import Card from '../components/Card.vue';
@@ -33,6 +33,8 @@ const cargosOptions = [
   { value: 'operator', label: 'Operador (Movimentação)' },
   { value: 'intern', label: 'Estagiário (Movimentação com restrições)' }
 ];
+
+const sessionDuration = ref(authStore.getSessionDuration());
 
 // --- AÇÕES ---
 
@@ -110,6 +112,15 @@ const saveEditing = async (id: string) => {
   } catch (e: any) {
     toast.error(e.message);
   }
+};
+
+const saveSessionDuration = () => {
+  if (sessionDuration.value < 1) {
+    toast.error('Duração inválida.');
+    return;
+  }
+  authStore.setSessionDuration(sessionDuration.value);
+  toast.success(`Duração da sessão global atualizada para ${sessionDuration.value} minutos.`);
 };
 
 // Foca no input ao carregar e inicializa a store
@@ -197,6 +208,30 @@ onMounted(async () => {
                 <Button full-width size="lg" @click="handleAddUser" class="shadow-lg shadow-blue-100">
                   <UserPlus :size="18" class="mr-2" />
                   Cadastrar
+                </Button>
+              </div>
+            </div>
+          </Card>
+
+          <Card class="border-t-4 border-t-purple-500">
+            <div class="flex items-center gap-2 mb-6">
+              <Timer :size="22" class="text-purple-600" />
+              <h3 class="font-bold text-gray-800 text-lg">Sessão Global</h3>
+            </div>
+            
+            <div class="space-y-5">
+              <Input 
+                v-model.number="sessionDuration" 
+                label="Duração em Minutos *" 
+                placeholder="Ex: 5" 
+                type="number"
+                min="1"
+              />
+
+              <div class="pt-2">
+                <Button full-width size="md" @click="saveSessionDuration" class="bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-100">
+                  <Save :size="18" class="mr-2" />
+                  Salvar Tempo
                 </Button>
               </div>
             </div>

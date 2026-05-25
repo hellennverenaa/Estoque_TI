@@ -65,6 +65,13 @@ export const createApiClient = (options: ApiClientOptions = {}) => {
       method,
       headers: {
         ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(() => {
+          try {
+            const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+            if (user.rfid) return { 'x-rfid': String(user.rfid) };
+          } catch (e) {}
+          return {};
+        })(),
         ...(headers ?? {})
       },
       body: body ? JSON.stringify(body) : undefined,
