@@ -96,11 +96,11 @@ export type UpdateProductDTO = {
 export type UpdateProductPayload = UpdateProductDTO & { updated_by: number; }
 
 export const productsApi = {
-  list: (filters?: ProductListFilters) => apiClient.get<ApiProductResponse>('/api/products', filters),
+  list: (filters?: ProductListFilters) => apiClient.get<ApiProductResponse>('/products', filters),
 
-  getById: (id: string) => apiClient.get<ApiSingleProductResponse>(`/api/products/${id}`),
+  getById: (id: string) => apiClient.get<ApiSingleProductResponse>(`/products/${id}`),
 
-  create: (payload: CreateProductPayload, userRfid: number | string) => apiClient.post<ApiSingleProductResponse>('/api/products', 
+  create: (payload: CreateProductPayload, userRfid: number | string) => apiClient.post<ApiSingleProductResponse>('/products', 
     payload,
     {
       'x-rfid': userRfid.toString()
@@ -108,19 +108,19 @@ export const productsApi = {
   ),
 
   update: (id: string, payload: UpdateProductPayload, userRfid: number) =>
-    apiClient.patch<ApiSingleProductResponse>(`/api/products/${id}`,
+    apiClient.patch<ApiSingleProductResponse>(`/products/${id}`,
       payload,
       {
         'x-rfid': userRfid.toString()
       }
     ),
 
-  remove: (id: string, userRfid: number | string) => apiClient.delete<{ message: string }>(`/api/products/${id}`, {
+  remove: (id: string, userRfid: number | string) => apiClient.delete<{ message: string }>(`/products/${id}`, {
     'x-rfid': userRfid.toString()
   }),
 
-  replenish: (id: string) => apiClient.post<{ success: boolean; message: string }>(`/api/products/${id}/replenish`),
+  replenish: (id: string) => apiClient.post<{ success: boolean; message: string }>(`/products/${id}/replenish`),
 
   dashboardStats: (filters?: ProductsDashboardFilters) =>
-    apiClient.get<ProductsDashboardResponse>('/api/products/stats/dashboard', filters)
+    apiClient.get<ProductsDashboardResponse>('/products/stats/dashboard', filters)
 };

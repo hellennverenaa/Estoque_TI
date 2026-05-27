@@ -67,16 +67,16 @@ export type CreateMovimentationPayload = {
 };
 
 export const movimentationsApi = {
-  list: () => apiClient.get<ApiResponse<ApiMovimentation[]>>('/api/movimentations'),
+  list: () => apiClient.get<ApiResponse<ApiMovimentation[]>>('/movimentations'),
 
-  getById: (id: string) => apiClient.get<ApiResponse<ApiMovimentation>>(`/api/movimentations/${id}`),
+  getById: (id: string) => apiClient.get<ApiResponse<ApiMovimentation>>(`/movimentations/${id}`),
 
   listByProduct: (productId: string) =>
-    apiClient.get<ApiResponse<ApiMovimentation[]>>(`/api/movimentations/product/${productId}`),
+    apiClient.get<ApiResponse<ApiMovimentation[]>>(`/movimentations/product/${productId}`),
 
   dashboard: (filters?: MovimentationsDashboardFilters) =>
-    apiClient.get<MovimentationsDashboardResponse>('/api/movimentations/stats/dashboard', filters),
+    apiClient.get<MovimentationsDashboardResponse>('/movimentations/stats/dashboard', filters),
 
   create: (payload: CreateMovimentationPayload) =>
-    apiClient.post<ApiResponse<ApiMovimentation>>('/api/movimentations', payload)
+    apiClient.post<ApiResponse<ApiMovimentation>>('/movimentations', payload)
 };
