@@ -43,6 +43,7 @@ const toQueryString = (params?: Record<string, unknown>) => {
 
 export const createApiClient = (options: ApiClientOptions = {}) => {
   const baseURL = defaultBaseURL;
+  const baseURL = defaultBaseURL;
 
   const request = async <T>(
     method: string,
