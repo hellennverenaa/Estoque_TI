@@ -14,8 +14,6 @@ export class ApiError extends Error {
   }
 }
 
-const trimSlash = (value: string) => value.replace(/\/+$/, '');
-
 const defaultBaseURL = (() => {
   const envUrl = (import.meta as any).env?.VITE_API_URL as string | undefined;
   return `${envUrl}:2399/api/almoxarifado-ti`;
@@ -42,7 +40,6 @@ const toQueryString = (params?: Record<string, unknown>) => {
 };
 
 export const createApiClient = (options: ApiClientOptions = {}) => {
-  const baseURL = defaultBaseURL;
   const baseURL = defaultBaseURL;
 
   const request = async <T>(
