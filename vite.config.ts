@@ -7,10 +7,14 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [vue()],
+    base: mode === "production" ? "/almoxarifado_ti/" : "/",
     resolve: {
       alias: {
         '@': '/src'
       }
+    },
+    build: {
+      outDir: "almoxarifado_ti"
     },
     server: {
       proxy: {
