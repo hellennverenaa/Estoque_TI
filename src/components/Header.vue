@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { Menu, Bell, User, LogOut, AlertTriangle, CheckCircle2 } from 'lucide-vue-next';
+import { Menu, Bell, User, LogOut, AlertTriangle, CheckCircle2, Settings } from 'lucide-vue-next';
 import { useMaterialStore } from '../stores/materialStore';
+import { useAuthStore } from '../stores/authStore';
 
 interface HeaderProps {
   userName?: string;
@@ -17,6 +18,7 @@ const emit = defineEmits<{
 }>();
 
 const materialStore = useMaterialStore();
+const authStore = useAuthStore();
 
 onMounted(() => {
   materialStore.ensureLoaded().catch(() => undefined);
@@ -25,6 +27,7 @@ onMounted(() => {
 // Estados dos menus
 const showNotifications = ref(false);
 const showProfileMenu = ref(false);
+const showSettingsModal = ref(false);
 
 // Lógica simples de notificação
 const alertas = computed(() => materialStore.materials.filter(m => m.quantity <= m.minimal_quantity));
@@ -38,6 +41,11 @@ const toggleNotifications = () => {
 const toggleProfile = () => {
   showProfileMenu.value = !showProfileMenu.value;
   showNotifications.value = false;
+};
+
+const toggleSettingsModal = () => {
+  showSettingsModal.value = true;
+  showProfileMenu.value = false;
 };
 </script>
 
@@ -125,6 +133,13 @@ const toggleProfile = () => {
               <p class="text-sm font-medium text-gray-900 truncate">{{ userName }}</p>
             </div>
             <button 
+              @click="toggleSettingsModal"
+              class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors mb-1"
+            >
+              <Settings :size="16" />
+              Perfil / Notificações
+            </button>
+            <button 
               @click="emit('logout')"
               class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-xl transition-colors"
             >
@@ -139,4 +154,50 @@ const toggleProfile = () => {
     
     <div v-if="showNotifications || showProfileMenu" @click="showNotifications = false; showProfileMenu = false" class="fixed inset-0 z-40 bg-transparent"></div>
   </header>
+
+  <Teleport to="body">
+    <div v-if="showSettingsModal" class="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" @click="showSettingsModal = false"></div>
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative z-10">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 class="text-lg font-bold text-gray-900">Configurações de Perfil</h2>
+          <button @click="showSettingsModal = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="p-6">
+          <div class="flex items-center gap-4 mb-6">
+            <div class="w-12 h-12 bg-gradient-to-br from-[#2563EB] to-[#1E40AF] rounded-full flex items-center justify-center shadow-sm">
+              <User :size="24" class="text-white" />
+            </div>
+            <div>
+              <p class="font-bold text-gray-900">{{ userName }}</p>
+              <p class="text-sm text-gray-500">Matrícula: {{ authStore.currentUser?.matricula }}</p>
+            </div>
+          </div>
+          
+          <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 flex items-center justify-between">
+            <div>
+              <p class="font-semibold text-gray-900 flex items-center gap-2">
+                <Bell :size="16" class="text-blue-600" />
+                Alertas de Estoque
+              </p>
+              <p class="text-sm text-gray-500 mt-1">Receber e-mails de baixo estoque.</p>
+            </div>
+            
+            <button 
+              @click="authStore.toggleNotification(!authStore.notificationEnabled)"
+              :class="authStore.notificationEnabled ? 'bg-blue-600' : 'bg-gray-300'"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+            >
+              <span 
+                :class="authStore.notificationEnabled ? 'translate-x-5' : 'translate-x-0'"
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              ></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>

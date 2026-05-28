@@ -17,6 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const currentUser = ref<Usuario | null>(null);
   const sessionExpiry = ref<number | null>(null);
+  const notificationEnabled = ref(false);
 
   const savedUser = localStorage.getItem('currentUser');
   if (savedUser) {
@@ -25,6 +26,13 @@ export const useAuthStore = defineStore('auth', () => {
   const savedExpiry = localStorage.getItem('sessionExpiry');
   if (savedExpiry) {
     sessionExpiry.value = Number(savedExpiry);
+  }
+
+  // Ao restaurar sessão do localStorage, buscar status de notificação
+  if (currentUser.value && sessionExpiry.value && Date.now() <= sessionExpiry.value) {
+    userApi.getNotificationStatus(currentUser.value.matricula)
+      .then((res: any) => { notificationEnabled.value = res.enabled; })
+      .catch(() => {});
   }
 
   const getSessionDuration = () => {
@@ -45,12 +53,17 @@ export const useAuthStore = defineStore('auth', () => {
     
     localStorage.setItem('currentUser', JSON.stringify(user));
     localStorage.setItem('sessionExpiry', String(sessionExpiry.value));
+    
+    // Buscar status de notificação assíncronamente
+    fetchNotificationStatus(user.matricula).catch(console.error);
+
     return user;
   };
 
   const logout = () => {
     currentUser.value = null;
     sessionExpiry.value = null;
+    notificationEnabled.value = false;
     localStorage.removeItem('currentUser');
     localStorage.removeItem('sessionExpiry');
   };
@@ -123,6 +136,28 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
+  const fetchNotificationStatus = async (matricula: string | number) => {
+    try {
+      const response = await userApi.getNotificationStatus(matricula) as any;
+      notificationEnabled.value = response.enabled;
+    } catch (e) {
+      console.error('Erro ao buscar status de notificação', e);
+    }
+  };
+
+  const toggleNotification = async (enable: boolean) => {
+    if (!currentUser.value) return;
+    loading.value = true;
+    try {
+      const response = await userApi.toggleNotificationStatus(currentUser.value.matricula, enable) as any;
+      notificationEnabled.value = response.enabled;
+    } catch (e: any) {
+      throw new Error(e.message || 'Erro ao alterar notificação.');
+    } finally {
+      loading.value = false;
+    }
+  };
+
   const ensureLoaded = async () => {
     if (usuarios.value) return;
 
@@ -152,6 +187,9 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     checkSession,
     getSessionDuration,
-    setSessionDuration
+    setSessionDuration,
+    notificationEnabled,
+    fetchNotificationStatus,
+    toggleNotification
   };
 });
