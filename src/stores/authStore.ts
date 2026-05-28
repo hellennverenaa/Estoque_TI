@@ -136,11 +136,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!codigo) return null;
     const list = usuarios.value ?? [];
 
-    return (
-      list.find(u => normalizar(u.rfid) === codigo) ??
-      list.find(u => normalizar(u.matricula) === codigo) ??
-      null
-    );
+    return list.find(u => normalizar(u.rfid) === codigo) ?? null;
   };
 
   return {

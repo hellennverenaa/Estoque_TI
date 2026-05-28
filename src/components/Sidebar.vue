@@ -10,7 +10,8 @@ import {
   Settings,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  LogOut
 } from 'lucide-vue-next';
 
 interface SidebarProps {
@@ -25,6 +26,7 @@ withDefaults(defineProps<SidebarProps>(), {
 const emit = defineEmits<{
   close: []
   toggleCollapse: []
+  logout: []
 }>();
 
 const router = useRouter();
@@ -107,6 +109,18 @@ const handleNavigate = (path: string) => {
           </li>
         </ul>
       </nav>
+      
+      <div class="p-4 border-t border-[#E5E7EB] mt-auto">
+        <button
+          @click="emit('logout')"
+          class="w-full flex items-center rounded-xl transition-all duration-200 text-left font-medium text-red-600 hover:bg-red-50"
+          :class="isCollapsed ? 'justify-center px-3 py-3.5' : 'gap-3 px-4 py-3.5'"
+          title="Encerrar Sessão"
+        >
+          <LogOut :size="20" class="flex-shrink-0" />
+          <span v-if="!isCollapsed" class="text-[15px]">Sair do Sistema</span>
+        </button>
+      </div>
     </div>
   </aside>
 </template>

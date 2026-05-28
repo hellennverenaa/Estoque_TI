@@ -14,16 +14,18 @@ import Badge from '../components/Badge.vue';
 import { useMaterialStore } from '../stores/materialStore';
 import { useMovimentacaoStore } from '../stores/movimentacaoStore';
 import { useAuthStore } from '../stores/authStore';
-import { LOCAIS } from '../constants/lists';
+import { useSettingsStore } from '../stores/settingsStore';
 
 const materialStore = useMaterialStore();
 const movimentacaoStore = useMovimentacaoStore();
 const authStore = useAuthStore();
+const settingsStore = useSettingsStore();
 
 onMounted(() => {
   materialStore.ensureLoaded().catch(() => undefined);
   movimentacaoStore.ensureLoaded().catch(() => undefined);
   authStore.ensureLoaded().catch(() => undefined);
+  settingsStore.ensureLoaded().catch(() => undefined);
 });
 
 // --- Controles ---
@@ -58,14 +60,7 @@ const destinationTypeOptions = [
   { value: 'Setor', label: 'Setor' }
 ];
 
-const setoresOptions = [
-  { value: 'TI', label: 'TI' },
-  { value: 'RH', label: 'Recursos Humanos' },
-  { value: 'Financeiro', label: 'Financeiro' },
-  { value: 'Producao', label: 'Produção' },
-  { value: 'Diretoria', label: 'Diretoria' }
-];
-
+const setoresOptions = computed(() => settingsStore.getSectorsOptions);
 watch(buscaIdentificacao, (novoValor) => {
   materialEncontradoInfo.value = null; 
   if (!novoValor || String(novoValor).trim() === '') return;
@@ -93,7 +88,7 @@ watch(materialSelecionado, (novoMaterial) => {
   if (novoMaterial) {
     const localAtual = novoMaterial.local_storage || '';
     // Verifica se o local atual é um dos locais padrões (simples) definidos no arquivo de listas
-    const isLocalSimples = LOCAIS.some(l => l.value === localAtual);
+    const isLocalSimples = settingsStore.locations.some(l => l.name === localAtual);
     
     // Se for simples, preenche. Se for composto (múltiplos), deixa vazio para forçar escolha.
     formData.value.local = isLocalSimples ? localAtual : '';
@@ -293,7 +288,7 @@ const badgeVariantByTipo = (tipo: string) => {
                 <span v-if="formData.tipo === 'entrada'" class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Adicionar Local</span>
               </div>
             <div v-if="formData.tipo === 'entrada'" class="relative">
-              <Select v-model="formData.local" :options="LOCAIS" :required="formData.tipo === 'entrada'" placeholder="Onde será guardado?" />
+              <Select v-model="formData.local" :options="settingsStore.getLocationsOptions" :required="formData.tipo === 'entrada'" placeholder="Onde será guardado?" />
               <div v-if="materialSelecionado && materialSelecionado.local_storage && !materialSelecionado.local_storage.includes(formData.local) && formData.local" class="absolute -bottom-5 right-0 text-xs text-blue-600 flex items-center gap-1 font-medium">
                  <MapPin :size="12"/> Será adicionado aos locais existentes
               </div>

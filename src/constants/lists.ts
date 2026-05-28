@@ -1,17 +1,6 @@
 // ARQUIVO: src/constants/lists.ts
 
-// --- EDITE AQUI OS SEUS LOCAIS REAIS ---
-export const LOCAIS = [
-  { value: 'prateleira_nivel_01', label: 'Prateleira Nível 01' },
-  { value: 'prateleira_nivel_02', label: 'Prateleira Nível 02' },
-  { value: 'prateleira_nivel_03', label: 'Prateleira Nível 03' },
-  { value: 'gaveta_01', label: 'Gaveta 01' },
-  { value: 'gaveta_02', label: 'Gaveta 02' },
-  { value: 'gaveta_03', label: 'Gaveta 03' },
-  { value: 'gaveta_04', label: 'Gaveta 04' },
-  { value: 'organizador_01', label: 'Organizador 01' },
-  { value: 'organizador_02', label: 'Organizador 02' },
-];
+// ARQUIVO: src/constants/lists.ts
 
 // --- CATEGORIAS PADRÃO ---
 export const CATEGORIAS = [

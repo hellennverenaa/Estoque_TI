@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
 // Importação dos componentes das páginas
-import DashboardPage from '../pages/DashboardPage.vue';
+import DashboardPage from '@/pages/DashboardPage.vue';
 import CadastroPage from '../pages/CadastroPage.vue';
 import ListagemPage from '../pages/ListagemPage.vue';
 import MovimentacaoPage from '../pages/MovimentacaoPage.vue';
@@ -21,8 +21,9 @@ const routes = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
+  linkActiveClass: "active",
 });
 
 export default router;

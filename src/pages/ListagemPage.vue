@@ -1,37 +1,6 @@
 <template>
   <div class="flex flex-col gap-10 relative">
-    <!-- Auth Modal -->
-    <div
-      v-if="showEditAuthModal"
-      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-    >
-      <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border border-red-100 relative">
-        <button @click="showEditAuthModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-red-500">
-          <X :size="24" />
-        </button>
-        <div class="flex flex-col items-center gap-4 text-center">
-          <div class="bg-red-50 p-4 rounded-full">
-            <Lock :size="40" class="text-red-500" />
-          </div>
-          <div>
-            <h3 class="text-xl font-bold text-gray-900">Acesso Restrito</h3>
-            <p class="text-gray-500 mt-1">Bipe seu crachá para liberar a edição.</p>
-          </div>
-
-          <div class="w-full relative mt-4">
-            <v-text-field
-              ref="authInputRef"
-              v-model="authInput"
-              @keyup.enter="confirmEditAuth"
-              type="password"
-              placeholder="Bipe seu crachá..."
-              variant="outlined"
-              color="blue"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Auth Modal removed -->
 
     <!-- Detalhes produtos -->
     <div
@@ -216,7 +185,7 @@
 
     <!-- Modal Edição de Produto -->
     <div v-if="materialToEdit && openEditDialog">
-      <EdicaoPage @update="emitUpdatedProduct" :product="materialToEdit" :dialog="openEditDialog" :authRfid="authInput"/>
+      <EdicaoPage @update="emitUpdatedProduct" :product="materialToEdit" :dialog="openEditDialog" :authRfid="String(authStore.currentUser?.rfid)"/>
     </div>
   </div>
 </template>
@@ -225,7 +194,7 @@
 import { ref, computed, nextTick, onMounted, watch } from "vue";
 
 import { toast } from "vue-sonner";
-import { Search, Edit2, Eye, Filter, X, CheckCircle, Lock } from "lucide-vue-next";
+import { Search, Edit2, Eye, Filter, X, CheckCircle } from "lucide-vue-next";
 
 // Components
 import Card from "../components/Card.vue";
@@ -298,50 +267,19 @@ const limparFiltros = () => {
 const showDetailsModal = ref(false);
 const selectedMaterial = ref<any>(null);
 
-const showEditAuthModal = ref(false);
 const materialToEdit = ref<any>(null);
-const authInput = ref("");
-const authInputRef = ref<HTMLInputElement | null>(null);
-const isAuthenticated = ref(false);
+const openEditDialog = ref(false);
 
 // Ações
 const handleEditClick = (material: any) => {
   materialToEdit.value = material;
-  showEditAuthModal.value = true;
-  authInput.value = "";
   showDetailsModal.value = false;
-  nextTick(() => {
-    if (authInputRef.value) authInputRef.value.focus();
-  });
-};
-
-const openEditDialog = ref(false)
-const confirmEditAuth = () => {
-  if (!materialToEdit.value) {
-    toast.error("Nenhum material selecionado para edição.");
-    console.warn("Nenhuma material selecionado para edição");
-
-    showEditAuthModal.value = false;
-    return;
-  }
-
-  const user = allowedUsers.value.find((u) => u.rfid === authInput.value.trim());
-  if (!user) {
-    toast.error("Crachá não reconhecido.");
-    authInput.value = "";
-    return;
-  }
-  toast.success(`Acesso liberado: ${user.username}`);
-  showEditAuthModal.value = false;
-
-  isAuthenticated.value = true;
   openEditDialog.value = true;
 };
 
 // Função capta alteração do dialog de edição para atualizar as variaveis locais de verificação
 const emitUpdatedProduct = (value: boolean) => {
   openEditDialog.value = value;
-  isAuthenticated.value = false;
 };
 
 const handleView = (material: any) => {

@@ -1,22 +1,8 @@
 <template>
   <div class="space-y-6 relative">
-    <div class="space-y-1">
-      <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-700 to-blue-500 bg-clip-text text-transparent">
-        Cadastrar Material
-      </h1>
-      <p class="text-gray-500">Preencha os dados abaixo para registrar um novo item no sistema.</p>
 
-      <Input
-        v-model="userRfid"
-        class="flex-1"
-        placeholder="Aproxime o crachá do leitor..."
-        @keyup.enter="checkUserPermission"
-        :disabled="isUserAllowed"
-        required
-      />
-    </div>
 
-    <div v-if="userRfid && isUserAllowed">
+    <div >
       <form @submit.prevent="createProduct" class="space-y-8">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card class="md:col-span-2 border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
@@ -99,7 +85,7 @@
               <Input v-model="formData.quantity" label="Quantidade Inicial *" type="number" min="0" required />
               <Input v-model="formData.minimal_quantity" label="Estoque Mínimo (Alerta)" type="number" min="1" />
 
-              <Select v-model="formData.local_storage" label="Local de Armazenamento" :options="LOCAIS" />
+              <Select v-model="formData.local_storage" label="Local de Armazenamento" :options="settingsStore.getLocationsOptions" />
 
               <div class="md:col-span-1">
                 <Input
@@ -134,32 +120,18 @@ import Input from "../components/Input.vue";
 import Select from "../components/Select.vue";
 import Button from "../components/Button.vue";
 import { useAuthStore } from "../stores/authStore";
-import { LOCAIS, CATEGORIAS } from "../constants/lists";
+import { CATEGORIAS } from "../constants/lists";
 import { useMaterialStore } from "../stores/materialStore";
+import { useSettingsStore } from "../stores/settingsStore";
 
 const materialStore = useMaterialStore();
 const authStore = useAuthStore();
+const settingsStore = useSettingsStore();
 
 onMounted(() => {
   authStore.ensureLoaded().catch(() => undefined);
+  settingsStore.ensureLoaded().catch(() => undefined);
 });
-
-const allowedUsers = computed(() => authStore.usuarios || []);
-
-const userRfid = ref("");
-const isUserAllowed = ref(false);
-
-const checkUserPermission = () => {
-  const user = allowedUsers.value.find((u) => u.rfid === userRfid.value.trim());
-  if (user) {
-    isUserAllowed.value = true;
-    toast.success(`Acesso autorizado!`);
-  } else {
-    isUserAllowed.value = false;
-    userRfid.value = ""
-    toast.error("Acesso negado: Usuário não autorizado.");
-  }
-};
 
 const formData = ref({
   name: "",
@@ -170,7 +142,7 @@ const formData = ref({
   minimal_quantity: "",
   local_storage: "",
   value: "",
-  created_by: userRfid.value,
+  created_by: computed(() => String(authStore.currentUser?.rfid || "")),
 });
 
 const createProduct = async () => {
@@ -184,10 +156,10 @@ const createProduct = async () => {
       minimal_quantity: Number(formData.value.minimal_quantity),
       local_storage: formData.value.local_storage,
       value: formData.value.value ? Number(formData.value.value) : undefined,
-      created_by: Number(userRfid.value),
+      created_by: Number(authStore.currentUser?.rfid),
     }
     
-    await materialStore.createMaterial(data, userRfid.value);
+    await materialStore.createMaterial(data, String(authStore.currentUser?.rfid));
     toast.success("Produto criado com sucesso!");
     // limpar o formulário
     formData.value = {
@@ -199,7 +171,6 @@ const createProduct = async () => {
       minimal_quantity: "",
       local_storage: "",
       value: "",
-      created_by: userRfid.value,
     };
   } catch (error) {
     toast.error("Erro ao criar produto!");

@@ -16,7 +16,7 @@ export class ApiError extends Error {
 
 const defaultBaseURL = (() => {
   const envUrl = (import.meta as any).env?.VITE_API_URL as string | undefined;
-  return `${envUrl}:2399/api/almoxarifado-ti`;
+  return `${envUrl}:2307/api/almoxarifado-ti`;
 })();
 
 const buildUrl = (path: string, baseURL: string) => {

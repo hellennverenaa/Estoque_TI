@@ -77,7 +77,7 @@ const handleLogin = () => {
             v-model="cracha"
             type="text"
             label="Crachá"
-            placeholder="Aproxime o crachá ou digite a matrícula"
+            placeholder="Aproxime o crachá (RFID)"
             required
             autocomplete="off"
           />

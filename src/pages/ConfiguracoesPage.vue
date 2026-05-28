@@ -10,6 +10,8 @@ import Select from '../components/Select.vue';
 import Button from '../components/Button.vue';
 import Badge from '../components/Badge.vue';
 import { useAuthStore } from '../stores/authStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import { settingsApi } from '../services/settingsApi';
 
 const authStore = useAuthStore();
 
@@ -123,6 +125,95 @@ const saveSessionDuration = () => {
   toast.success(`Duração da sessão global atualizada para ${sessionDuration.value} minutos.`);
 };
 
+// --- SETTINGS STORE CRUD ---
+const settingsStore = useSettingsStore();
+
+const newLocationName = ref('');
+const editingLocationId = ref<string | null>(null);
+const editingLocationName = ref('');
+
+const newSectorName = ref('');
+const editingSectorId = ref<string | null>(null);
+const editingSectorName = ref('');
+
+const handleAddLocation = async () => {
+  if (!newLocationName.value || !adminRfid.value) return;
+  try {
+    await settingsApi.createLocation(newLocationName.value, adminRfid.value);
+    toast.success('Local adicionado.');
+    newLocationName.value = '';
+    await settingsStore.fetchSettings();
+  } catch (e: any) {
+    toast.error(e.response?.data?.error || e.message);
+  }
+};
+const startEditingLocation = (loc: any) => {
+  editingLocationId.value = loc.id;
+  editingLocationName.value = loc.name;
+};
+const saveEditingLocation = async (id: string) => {
+  if (!adminRfid.value) return;
+  try {
+    await settingsApi.updateLocation(id, editingLocationName.value, adminRfid.value);
+    toast.success('Local atualizado.');
+    editingLocationId.value = null;
+    await settingsStore.fetchSettings();
+  } catch (e: any) {
+    toast.error(e.response?.data?.error || e.message);
+  }
+};
+const deleteLocation = async (id: string, name: string) => {
+  if (!adminRfid.value) return;
+  if (confirm(`Remover local "${name}"?`)) {
+    try {
+      await settingsApi.deleteLocation(id, adminRfid.value);
+      toast.success('Local removido.');
+      await settingsStore.fetchSettings();
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || e.message);
+    }
+  }
+};
+
+const handleAddSector = async () => {
+  if (!newSectorName.value || !adminRfid.value) return;
+  try {
+    await settingsApi.createSector(newSectorName.value, adminRfid.value);
+    toast.success('Setor adicionado.');
+    newSectorName.value = '';
+    await settingsStore.fetchSettings();
+  } catch (e: any) {
+    toast.error(e.response?.data?.error || e.message);
+  }
+};
+const startEditingSector = (sec: any) => {
+  editingSectorId.value = sec.id;
+  editingSectorName.value = sec.name;
+};
+const saveEditingSector = async (id: string) => {
+  if (!adminRfid.value) return;
+  try {
+    await settingsApi.updateSector(id, editingSectorName.value, adminRfid.value);
+    toast.success('Setor atualizado.');
+    editingSectorId.value = null;
+    await settingsStore.fetchSettings();
+  } catch (e: any) {
+    toast.error(e.response?.data?.error || e.message);
+  }
+};
+const deleteSector = async (id: string, name: string) => {
+  if (!adminRfid.value) return;
+  if (confirm(`Remover setor "${name}"?`)) {
+    try {
+      await settingsApi.deleteSector(id, adminRfid.value);
+      toast.success('Setor removido.');
+      await settingsStore.fetchSettings();
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || e.message);
+    }
+  }
+};
+
 // Foca no input ao carregar e inicializa a store
 nextTick(() => {
   if (isLocked.value) adminAuthRef.value?.focus();
@@ -131,6 +222,7 @@ nextTick(() => {
 import { onMounted } from 'vue';
 onMounted(async () => {
   await authStore.ensureLoaded();
+  await settingsStore.ensureLoaded();
 });
 </script>
 
@@ -184,7 +276,7 @@ onMounted(async () => {
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         <div class="lg:col-span-4 space-y-6">
-          <Card class="border-t-4 border-t-blue-500 h-full">
+          <Card class="border-t-4 border-t-blue-500">
             <div class="flex items-center gap-2 mb-6">
               <UserPlus :size="22" class="text-blue-600" />
               <h3 class="font-bold text-gray-800 text-lg">Adicionar Usuário</h3>
@@ -329,6 +421,76 @@ onMounted(async () => {
           </Card>
         </div>
 
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+        <!-- Locais de Armazenamento -->
+        <Card class="border-t-4 border-t-green-500">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-800 text-lg">Locais de Armazenamento</h3>
+            <Badge variant="default">{{ settingsStore.locations?.length || 0 }}</Badge>
+          </div>
+          <div class="flex gap-2 mb-4">
+            <Input v-model="newLocationName" placeholder="Novo local (Ex: Prateleira 1)" class="flex-1" @keyup.enter="handleAddLocation" />
+            <Button @click="handleAddLocation" variant="primary">Adicionar</Button>
+          </div>
+          <div class="overflow-y-auto max-h-60 border border-gray-100 rounded-lg">
+            <table class="w-full">
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="loc in settingsStore.locations" :key="loc.id" class="hover:bg-gray-50">
+                  <td class="px-4 py-2">
+                    <Input v-if="editingLocationId === loc.id" v-model="editingLocationName" @keyup.enter="saveEditingLocation(loc.id)" class="w-full" />
+                    <span v-else class="font-medium text-gray-700">{{ loc.name }}</span>
+                  </td>
+                  <td class="px-4 py-2 text-right w-24">
+                    <div v-if="editingLocationId === loc.id" class="flex justify-end gap-1">
+                      <button @click="saveEditingLocation(loc.id)" class="text-green-600 p-1"><Check :size="16" /></button>
+                      <button @click="editingLocationId = null" class="text-gray-400 p-1"><X :size="16" /></button>
+                    </div>
+                    <div v-else class="flex justify-end gap-1">
+                      <button @click="startEditingLocation(loc)" class="text-gray-400 hover:text-blue-600 p-1"><Edit2 :size="16" /></button>
+                      <button @click="deleteLocation(loc.id, loc.name)" class="text-gray-400 hover:text-red-600 p-1"><Trash2 :size="16" /></button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        <!-- Setores -->
+        <Card class="border-t-4 border-t-orange-500">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-800 text-lg">Setores</h3>
+            <Badge variant="default">{{ settingsStore.sectors?.length || 0 }}</Badge>
+          </div>
+          <div class="flex gap-2 mb-4">
+            <Input v-model="newSectorName" placeholder="Novo setor (Ex: TI)" class="flex-1" @keyup.enter="handleAddSector" />
+            <Button @click="handleAddSector" variant="primary">Adicionar</Button>
+          </div>
+          <div class="overflow-y-auto max-h-60 border border-gray-100 rounded-lg">
+            <table class="w-full">
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="sec in settingsStore.sectors" :key="sec.id" class="hover:bg-gray-50">
+                  <td class="px-4 py-2">
+                    <Input v-if="editingSectorId === sec.id" v-model="editingSectorName" @keyup.enter="saveEditingSector(sec.id)" class="w-full" />
+                    <span v-else class="font-medium text-gray-700">{{ sec.name }}</span>
+                  </td>
+                  <td class="px-4 py-2 text-right w-24">
+                    <div v-if="editingSectorId === sec.id" class="flex justify-end gap-1">
+                      <button @click="saveEditingSector(sec.id)" class="text-green-600 p-1"><Check :size="16" /></button>
+                      <button @click="editingSectorId = null" class="text-gray-400 p-1"><X :size="16" /></button>
+                    </div>
+                    <div v-else class="flex justify-end gap-1">
+                      <button @click="startEditingSector(sec)" class="text-gray-400 hover:text-blue-600 p-1"><Edit2 :size="16" /></button>
+                      <button @click="deleteSector(sec.id, sec.name)" class="text-gray-400 hover:text-red-600 p-1"><Trash2 :size="16" /></button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
       </div>
     </div>
   </div>

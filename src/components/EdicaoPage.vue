@@ -47,7 +47,7 @@
               <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Input v-model="formData.quantity" label="Quantidade Atual" type="number" required />
                 <Input v-model="formData.minimal_quantity" label="Mínimo (Alerta)" type="number" />
-                <Select v-model="formData.local_storage" label="Local" :options="LOCAIS" />
+                <Select v-model="formData.local_storage" label="Local" :options="settingsStore.getLocationsOptions" />
                 <Input v-model="formData.value" label="Valor Unit. (R$)" type="number" step="0.01" />
               </div>
             </Card>
@@ -91,11 +91,13 @@ import Card from "../components/Card.vue";
 import Input from "../components/Input.vue";
 import Select from "../components/Select.vue";
 import { useMaterialStore, Material } from "../stores/materialStore";
-import { LOCAIS, CATEGORIAS } from "../constants/lists";
+import { CATEGORIAS } from "../constants/lists";
 import { UpdateProductDTO } from "../services";
+import { useSettingsStore } from "../stores/settingsStore";
 
 // const router = useRouter();
 const materialStore = useMaterialStore();
+const settingsStore = useSettingsStore();
 
 const props = defineProps<{
   product: Material;
@@ -133,6 +135,7 @@ const dialog = ref(false);
 onMounted(() => {
   formData.value = { ...props.product, editReason: "" };
   dialog.value = props.dialog;
+  settingsStore.ensureLoaded().catch(() => undefined);
 });
 
 // Emit para controle do dialog externo em ListagemPage.vue

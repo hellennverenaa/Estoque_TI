@@ -67,6 +67,7 @@ const toggleSidebarCollapse = () => {
         :is-collapsed="isSidebarCollapsed"
         @close="isSidebarOpen = false"
         @toggle-collapse="toggleSidebarCollapse"
+        @logout="handleLogout"
       />
 
       <main
